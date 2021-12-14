@@ -1,0 +1,9 @@
+{
+	"compilerOptions": {
+		"module": "commonjs",
+		"resolveJsonModule": true,
+		"removeComments": true,
+		"outDir": "build"
+	},
+	"include": ["src/**/*.ts"]
+}
