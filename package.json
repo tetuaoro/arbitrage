@@ -1,18 +1,25 @@
 {
-  "name": "arbitrage",
-  "version": "0.0.1",
-  "description": "Make an arbitrage trading bot with your own capital\"",
-  "main": "build/index.js",
-  "author": "tetuaoro <tetuaoropro@gmail.com>",
-  "license": "MIT",
-  "private": false,
-  "devDependencies": {
-    "@types/node": "^16.11.12",
-    "@uniswap/v2-periphery": "^1.1.0-beta.0",
-    "openzeppelin-solidity": "^4.4.0"
-  },
-  "dependencies": {
-    "dotenv": "^10.0.0",
-    "ethers": "^5.5.2"
-  }
+	"name": "arbitrage",
+	"version": "0.0.1",
+	"description": "Make an arbitrage trading bot with your own capital",
+	"main": "build/index.js",
+	"author": "tetuaoro <tetuaoropro@gmail.com>",
+	"license": "MIT",
+	"private": false,
+	"scripts": {
+		"migrate": "truffle migrate --network development",
+		"build": "tsc",
+		"start": "NODE_ENV=dev yarn start:prod",
+		"all": "yarn migrate && yarn build && yarn start",
+		"start:prod": "node ."
+	},
+	"dependencies": {
+		"dotenv": "^10.0.0",
+		"ethers": "^5.5.1"
+	},
+	"devDependencies": {
+		"@types/node": "^16.11.12",
+		"@uniswap/v2-periphery": "^1.1.0-beta.0",
+		"openzeppelin-solidity": "^4.4.0"
+	}
 }

@@ -45,8 +45,16 @@ var IUniswapV2Pair_json_1 = require("./abi/IUniswapV2Pair.json");
 var IERC20_json_1 = require("./abi/IERC20.json");
 var RaoArbitrage_json_1 = require("./abi/RaoArbitrage.json");
 dotenv_1.config();
+var dev = process.env['NODE_ENV'] == 'dev';
+var PK = dev ? process.env['GANACHE_PRIVATE_KEY'] : process.env['PRIVATE_KEY'];
 var THROW_NOT_FOUND_PAIR = 'THROW_NOT_FOUND_PAIR';
-var provider = new ethers_1.providers.JsonRpcProvider('http://localhost:8545', 137), signer = new ethers_1.Wallet(process.env['GANACHE_PRIVATE_KEY'], provider), factoryContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IUniswapV2Factory_json_1.abi, provider), routerContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IUniswapV2Router01_json_1.abi, provider), pairContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IUniswapV2Pair_json_1.abi, provider), tokenContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IERC20_json_1.abi, provider), RAO_ARBITRAGE = new ethers_1.Contract('0xf3573E68D01849Fb33FD3c880F703503E946da93', RaoArbitrage_json_1.abi, provider);
+var NETWORK = 137, provider = dev
+    ? new ethers_1.providers.JsonRpcProvider('http://localhost:8545', NETWORK)
+    : new ethers_1.providers.InfuraProvider(NETWORK, {
+        projectId: process.env['INFURA_ID'],
+        projectSecret: process.env['INFURA_SECRET']
+    });
+var signer = new ethers_1.Wallet(PK, provider), factoryContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IUniswapV2Factory_json_1.abi, provider), routerContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IUniswapV2Router01_json_1.abi, provider), pairContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IUniswapV2Pair_json_1.abi, provider), tokenContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IERC20_json_1.abi, provider), RAO_ARBITRAGE = new ethers_1.Contract('0x7d35cd1250b8167a027669Ee5ccC90e23D31d16D', RaoArbitrage_json_1.abi, provider);
 var SUSHI_FACTORY, QUICK_FACTORY, SUSHI_ROUTER, QUICK_ROUTER, SUSHI_PAIR, QUICK_PAIR, tc0, tc1, TOKEN0, TOKEN1, MATIC;
 var initalize = function () { return __awaiter(void 0, void 0, void 0, function () {
     var pair, token0, temp, error_1;
@@ -122,74 +130,142 @@ var swap = function () { return __awaiter(void 0, void 0, void 0, function () {
         }
     });
 }); };
-var app = function () { return __awaiter(void 0, void 0, void 0, function () {
-    var balanceOf, path, sushi_amounts, quick_amounts, routerExpensive, routerCheap, deadline, res, error_3;
+var COUNTER_ERROR = 0, COUNTER_SUCCESS = 0, COUNTER_FAIL = 0, COUNTER = 0;
+var monitoring = function (pair, reserve0, reserve1, event) { return __awaiter(void 0, void 0, void 0, function () {
+    var CONTRACT_PAIR, NAME_PAIR_BORROW, NAME_PAIR_SELL, onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent, percents, reserveOther, reserveIn, reserveOut, table, _i, percents_1, amountIn, amountInWithFee, numerator, denominator, amountOut, amountToRepay, gt, s1, s2, error_3;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
-                console.log("App...");
-                _a.label = 1;
-            case 1:
-                _a.trys.push([1, 6, , 7]);
-                return [4, tc0.balanceOf(signer.address)];
-            case 2:
-                balanceOf = _a.sent();
-                console.log("balanceOf " + TOKEN0.symbol + " " + ethers_1.utils.formatUnits(balanceOf, TOKEN0.decimals));
-                path = [TOKEN0.address, TOKEN1.address];
-                return [4, SUSHI_ROUTER.getAmountsOut(balanceOf, path)];
-            case 3:
-                sushi_amounts = _a.sent();
-                return [4, QUICK_ROUTER.getAmountsOut(balanceOf, path)];
-            case 4:
-                quick_amounts = _a.sent();
-                if (sushi_amounts[1].gt(quick_amounts[1])) {
-                    routerCheap = SUSHI_ROUTER.address;
-                    routerExpensive = QUICK_ROUTER.address;
+                _a.trys.push([0, 2, , 3]);
+                if (pair == SUSHI_PAIR.address) {
+                    CONTRACT_PAIR = SUSHI_PAIR;
+                    NAME_PAIR_BORROW = 'SUSHI_BORROW_IN';
+                    NAME_PAIR_SELL = 'QUICK_SELL_OUT';
                 }
                 else {
-                    routerCheap = QUICK_ROUTER.address;
-                    routerExpensive = SUSHI_ROUTER.address;
+                    CONTRACT_PAIR = QUICK_PAIR;
+                    NAME_PAIR_BORROW = 'QUICK_BORROW_IN';
+                    NAME_PAIR_SELL = 'SUSHI_SELL_OUT';
                 }
-                deadline = Math.floor(Date.now() / 1000) + 30;
-                return [4, RAO_ARBITRAGE.swap(TOKEN0.address, TOKEN1.address, routerExpensive, routerCheap, balanceOf, deadline)];
-            case 5:
-                res = _a.sent();
-                console.log("rao says " + ethers_1.utils.formatUnits(res, TOKEN0.decimals));
-                console.table([
-                    {
-                        sushiOut: ethers_1.utils.formatUnits(sushi_amounts[1], TOKEN1.decimals),
-                        quickOut: ethers_1.utils.formatUnits(quick_amounts[1], TOKEN1.decimals)
-                    },
-                ]);
-                return [3, 7];
-            case 6:
+                onePercent = reserve0.div(100), twoPercent = reserve0.div(50), fivePercent = reserve0.div(20), tenPercent = reserve0.div(10), twentyPercent = reserve0.div(5), fiftyPercent = reserve0.div(2), percents = [onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent];
+                return [4, CONTRACT_PAIR.getReserves()];
+            case 1:
+                reserveOther = _a.sent(), reserveIn = reserveOther[0], reserveOut = reserveOther[1], table = [];
+                for (_i = 0, percents_1 = percents; _i < percents_1.length; _i++) {
+                    amountIn = percents_1[_i];
+                    amountInWithFee = amountIn.mul(997), numerator = amountInWithFee.mul(reserveOut), denominator = reserveIn.mul(1000).add(amountInWithFee), amountOut = numerator.div(denominator), amountToRepay = reserve1.mul(1000).mul(amountIn).div(reserve0.mul(997)).add(1), gt = amountOut.gt(amountToRepay), s1 = gt ? amountOut.sub(amountToRepay).mul(2) : amountToRepay.sub(amountOut).mul(2), s2 = s1.div(amountOut.add(amountToRepay)).mul(1e5);
+                    table.push({
+                        NAME_PAIR_BORROW: ethers_1.utils.formatUnits(amountIn, TOKEN0.decimals),
+                        NAME_PAIR_SELL: ethers_1.utils.formatUnits(amountOut, TOKEN1.decimals),
+                        Repay: ethers_1.utils.formatUnits(amountToRepay, TOKEN1.decimals),
+                        'CallSwap?': gt,
+                        difference: s2.toString()
+                    });
+                    if (gt)
+                        COUNTER_SUCCESS++;
+                    else
+                        COUNTER_FAIL++;
+                }
+                COUNTER++;
+                console.log(NAME_PAIR_BORROW + " -> " + NAME_PAIR_SELL + " ///" + COUNTER);
+                return [3, 3];
+            case 2:
                 error_3 = _a.sent();
                 throw error_3;
-            case 7: return [2];
+            case 3: return [2];
         }
     });
 }); };
+var listener = function () { return __awaiter(void 0, void 0, void 0, function () {
+    return __generator(this, function (_a) {
+        console.log("Listening...");
+        try {
+            SUSHI_PAIR.on('Sync', function (reserve0, reserve1, event) { return __awaiter(void 0, void 0, void 0, function () {
+                var error_4;
+                return __generator(this, function (_a) {
+                    switch (_a.label) {
+                        case 0:
+                            _a.trys.push([0, 2, , 3]);
+                            return [4, monitoring(SUSHI_PAIR.address, reserve0, reserve1, event)];
+                        case 1:
+                            _a.sent();
+                            return [3, 3];
+                        case 2:
+                            error_4 = _a.sent();
+                            COUNTER_ERROR++;
+                            return [3, 3];
+                        case 3: return [2];
+                    }
+                });
+            }); });
+            QUICK_PAIR.on('Sync', function (reserve0, reserve1, event) { return __awaiter(void 0, void 0, void 0, function () {
+                var error_5;
+                return __generator(this, function (_a) {
+                    switch (_a.label) {
+                        case 0:
+                            _a.trys.push([0, 2, , 3]);
+                            return [4, monitoring(QUICK_PAIR.address, reserve0, reserve1, event)];
+                        case 1:
+                            _a.sent();
+                            return [3, 3];
+                        case 2:
+                            error_5 = _a.sent();
+                            COUNTER_ERROR++;
+                            return [3, 3];
+                        case 3: return [2];
+                    }
+                });
+            }); });
+        }
+        catch (error) {
+            throw error;
+        }
+        return [2];
+    });
+}); };
 (function () { return __awaiter(void 0, void 0, void 0, function () {
-    var error_4;
+    var error_6;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
-                _a.trys.push([0, 4, , 5]);
+                _a.trys.push([0, 3, , 4]);
+                setInterval(function () {
+                    console.log("logs ///" + COUNTER);
+                    console.table([
+                        {
+                            COUNTER_ERROR: COUNTER_ERROR,
+                            COUNTER_FAIL: COUNTER_FAIL,
+                            COUNTER_SUCCESS: COUNTER_SUCCESS
+                        },
+                    ]);
+                }, 1e3 * 60);
                 return [4, initalize()];
             case 1:
                 _a.sent();
-                return [4, swap()];
+                return [4, listener()];
             case 2:
                 _a.sent();
-                return [4, app()];
+                return [3, 4];
             case 3:
-                _a.sent();
-                return [3, 5];
-            case 4:
-                error_4 = _a.sent();
-                console.error(error_4);
-                return [3, 5];
-            case 5: return [2];
+                error_6 = _a.sent();
+                console.log('####');
+                console.error(error_6);
+                console.log('####');
+                return [3, 4];
+            case 4: return [2];
         }
     });
 }); })();
+var close = function () {
+    console.table([
+        {
+            COUNTER_ERROR: COUNTER_ERROR,
+            COUNTER_FAIL: COUNTER_FAIL,
+            COUNTER_SUCCESS: COUNTER_SUCCESS
+        },
+    ]);
+    provider.removeAllListeners();
+    console.log("Clear listener...\nDone.");
+};
+process.on('exit', close);
+process.on('SIGINT', close);

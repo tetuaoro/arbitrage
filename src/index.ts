@@ -1,5 +1,6 @@
 import { config } from 'dotenv'
 import { providers, Contract, constants, BigNumber, Wallet, utils } from 'ethers'
+import { Event } from '@ethersproject/contracts'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { getToken } from './utils'
 import { abi as FACTORY_ABI } from './abi/IUniswapV2Factory.json'
@@ -8,18 +9,28 @@ import { abi as PAIR_ABI } from './abi/IUniswapV2Pair.json'
 import { abi as TOKEN_ABI } from './abi/IERC20.json'
 import { abi } from './abi/RaoArbitrage.json'
 
+/* CONFIGURATION */
 config()
+const dev = process.env['NODE_ENV'] == 'dev'
+const PK = dev ? process.env['GANACHE_PRIVATE_KEY'] : process.env['PRIVATE_KEY']
 
 const THROW_NOT_FOUND_PAIR = 'THROW_NOT_FOUND_PAIR'
 
-const provider = new providers.JsonRpcProvider('http://localhost:8545', 137),
-	signer = new Wallet(process.env['GANACHE_PRIVATE_KEY'], provider),
+const NETWORK = 137,
+	provider = dev
+		? new providers.JsonRpcProvider('http://localhost:8545', NETWORK)
+		: new providers.InfuraProvider(NETWORK, {
+				projectId: process.env['INFURA_ID'],
+				projectSecret: process.env['INFURA_SECRET'],
+		  })
+const signer = new Wallet(PK, provider),
 	factoryContract = new Contract(constants.AddressZero, FACTORY_ABI, provider),
 	routerContract = new Contract(constants.AddressZero, ROUTER_ABI, provider),
 	pairContract = new Contract(constants.AddressZero, PAIR_ABI, provider),
 	tokenContract = new Contract(constants.AddressZero, TOKEN_ABI, provider),
-	RAO_ARBITRAGE = new Contract('0xf3573E68D01849Fb33FD3c880F703503E946da93', abi, provider)
+	RAO_ARBITRAGE = new Contract('0x7d35cd1250b8167a027669Ee5ccC90e23D31d16D', abi, provider)
 
+/* START */
 var SUSHI_FACTORY: Contract,
 	QUICK_FACTORY: Contract,
 	SUSHI_ROUTER: Contract,
@@ -88,34 +99,79 @@ const swap = async () => {
 	}
 }
 
-const app = async () => {
-	console.log(`App...`)
+var COUNTER_ERROR = 0,
+	COUNTER_SUCCESS = 0,
+	COUNTER_FAIL = 0,
+	COUNTER = 0
+const monitoring = async (pair: Address, reserve0: BigNumber, reserve1: BigNumber, event: Event) => {
 	try {
-		const balanceOf = await tc0.balanceOf(signer.address)
-		console.log(`balanceOf ${TOKEN0.symbol} ${utils.formatUnits(balanceOf, TOKEN0.decimals)}`)
-
-		const path = [TOKEN0.address, TOKEN1.address]
-		const sushi_amounts: [BigNumber, BigNumber] = await SUSHI_ROUTER.getAmountsOut(balanceOf, path),
-			quick_amounts: [BigNumber, BigNumber] = await QUICK_ROUTER.getAmountsOut(balanceOf, path)
-
-		var routerExpensive: Address, routerCheap: Address
-		if (sushi_amounts[1].gt(quick_amounts[1])) {
-			routerCheap = SUSHI_ROUTER.address
-			routerExpensive = QUICK_ROUTER.address
+		var CONTRACT_PAIR: Contract, NAME_PAIR_BORROW: string, NAME_PAIR_SELL: string
+		if (pair == SUSHI_PAIR.address) {
+			CONTRACT_PAIR = SUSHI_PAIR
+			NAME_PAIR_BORROW = 'SUSHI_BORROW_IN'
+			NAME_PAIR_SELL = 'QUICK_SELL_OUT'
 		} else {
-			routerCheap = QUICK_ROUTER.address
-			routerExpensive = SUSHI_ROUTER.address
+			CONTRACT_PAIR = QUICK_PAIR
+			NAME_PAIR_BORROW = 'QUICK_BORROW_IN'
+			NAME_PAIR_SELL = 'SUSHI_SELL_OUT'
 		}
+		// borrow on listener pair
+		const onePercent = reserve0.div(100),
+			twoPercent = reserve0.div(50),
+			fivePercent = reserve0.div(20),
+			tenPercent = reserve0.div(10),
+			twentyPercent = reserve0.div(5),
+			fiftyPercent = reserve0.div(2),
+			percents = [onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent],
+			reserveOther: [BigNumber, BigNumber, number] = await CONTRACT_PAIR.getReserves(),
+			reserveIn = reserveOther[0],
+			reserveOut = reserveOther[1],
+			table = []
+		for (const amountIn of percents) {
+			let amountInWithFee = amountIn.mul(997),
+				numerator = amountInWithFee.mul(reserveOut),
+				denominator = reserveIn.mul(1000).add(amountInWithFee),
+				// amountOut from other pair for amount borrowed
+				amountOut = numerator.div(denominator),
+				amountToRepay = reserve1.mul(1000).mul(amountIn).div(reserve0.mul(997)).add(1),
+				gt = amountOut.gt(amountToRepay),
+				s1 = gt ? amountOut.sub(amountToRepay).mul(2) : amountToRepay.sub(amountOut).mul(2),
+				s2 = s1.div(amountOut.add(amountToRepay)).mul(1e5)
+			table.push({
+				NAME_PAIR_BORROW: utils.formatUnits(amountIn, TOKEN0.decimals),
+				NAME_PAIR_SELL: utils.formatUnits(amountOut, TOKEN1.decimals),
+				Repay: utils.formatUnits(amountToRepay, TOKEN1.decimals),
+				'CallSwap?': gt,
+				difference: s2.toString(),
+			})
 
-		const deadline = Math.floor(Date.now() / 1000) + 30
-		const res: BigNumber = await RAO_ARBITRAGE.swap(TOKEN0.address, TOKEN1.address, routerExpensive, routerCheap, balanceOf, deadline)
-		console.log(`rao says ${utils.formatUnits(res, TOKEN0.decimals)}`)
-		console.table([
-			{
-				sushiOut: utils.formatUnits(sushi_amounts[1], TOKEN1.decimals),
-				quickOut: utils.formatUnits(quick_amounts[1], TOKEN1.decimals),
-			},
-		])
+			if (gt) COUNTER_SUCCESS++
+			else COUNTER_FAIL++
+		}
+		COUNTER++
+		console.log(`${NAME_PAIR_BORROW} -> ${NAME_PAIR_SELL} ///${COUNTER}`)
+	} catch (error) {
+		throw error
+	}
+}
+
+const listener = async () => {
+	console.log(`Listening...`)
+	try {
+		SUSHI_PAIR.on('Sync', async (reserve0: BigNumber, reserve1: BigNumber, event: Event) => {
+			try {
+				await monitoring(SUSHI_PAIR.address, reserve0, reserve1, event)
+			} catch (error) {
+				COUNTER_ERROR++
+			}
+		})
+		QUICK_PAIR.on('Sync', async (reserve0: BigNumber, reserve1: BigNumber, event: Event) => {
+			try {
+				await monitoring(QUICK_PAIR.address, reserve0, reserve1, event)
+			} catch (error) {
+				COUNTER_ERROR++
+			}
+		})
 	} catch (error) {
 		throw error
 	}
@@ -123,10 +179,36 @@ const app = async () => {
 
 ;(async () => {
 	try {
+		setInterval(() => {
+			console.log(`logs ///${COUNTER}`)
+			console.table([
+				{
+					COUNTER_ERROR,
+					COUNTER_FAIL,
+					COUNTER_SUCCESS,
+				},
+			])
+		}, 1e3 * 60)
 		await initalize()
-		await swap()
-		await app()
+		await listener()
 	} catch (error) {
+		console.log('####')
 		console.error(error)
+		console.log('####')
 	}
 })()
+
+const close = () => {
+	console.table([
+		{
+			COUNTER_ERROR,
+			COUNTER_FAIL,
+			COUNTER_SUCCESS,
+		},
+	])
+	provider.removeAllListeners()
+	console.log(`Clear listener...\nDone.`)
+}
+
+process.on('exit', close)
+process.on('SIGINT', close)
