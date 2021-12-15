@@ -10,7 +10,7 @@
 		"migrate": "truffle migrate --network development",
 		"build": "tsc",
 		"start": "NODE_ENV=dev yarn start:prod",
-		"all": "yarn migrate && yarn build && yarn start",
+		"test": "yarn build && yarn start",
 		"start:prod": "node ."
 	},
 	"dependencies": {

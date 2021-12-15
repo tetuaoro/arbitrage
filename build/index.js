@@ -35,237 +35,194 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
+var __asyncValues = (this && this.__asyncValues) || function (o) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var m = o[Symbol.asyncIterator], i;
+    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
+    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
+    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
+};
 exports.__esModule = true;
-var dotenv_1 = require("dotenv");
-var ethers_1 = require("ethers");
+var flashswap_1 = require("./flashswap");
 var utils_1 = require("./utils");
-var IUniswapV2Factory_json_1 = require("./abi/IUniswapV2Factory.json");
-var IUniswapV2Router01_json_1 = require("./abi/IUniswapV2Router01.json");
-var IUniswapV2Pair_json_1 = require("./abi/IUniswapV2Pair.json");
-var IERC20_json_1 = require("./abi/IERC20.json");
-var RaoArbitrage_json_1 = require("./abi/RaoArbitrage.json");
-dotenv_1.config();
-var dev = process.env['NODE_ENV'] == 'dev';
-var PK = dev ? process.env['GANACHE_PRIVATE_KEY'] : process.env['PRIVATE_KEY'];
-var THROW_NOT_FOUND_PAIR = 'THROW_NOT_FOUND_PAIR';
-var NETWORK = 137, provider = dev
-    ? new ethers_1.providers.JsonRpcProvider('http://localhost:8545', NETWORK)
-    : new ethers_1.providers.InfuraProvider(NETWORK, {
-        projectId: process.env['INFURA_ID'],
-        projectSecret: process.env['INFURA_SECRET']
-    });
-var signer = new ethers_1.Wallet(PK, provider), factoryContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IUniswapV2Factory_json_1.abi, provider), routerContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IUniswapV2Router01_json_1.abi, provider), pairContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IUniswapV2Pair_json_1.abi, provider), tokenContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IERC20_json_1.abi, provider), RAO_ARBITRAGE = new ethers_1.Contract('0x7d35cd1250b8167a027669Ee5ccC90e23D31d16D', RaoArbitrage_json_1.abi, provider);
-var SUSHI_FACTORY, QUICK_FACTORY, SUSHI_ROUTER, QUICK_ROUTER, SUSHI_PAIR, QUICK_PAIR, tc0, tc1, TOKEN0, TOKEN1, MATIC;
-var initalize = function () { return __awaiter(void 0, void 0, void 0, function () {
-    var pair, token0, temp, error_1;
-    return __generator(this, function (_a) {
-        switch (_a.label) {
+var FLASHSWAPS = [];
+var blockNumber = 0, COUNTER_SUCCESS = 0, COUNTER_FAIL = 0, COUNTER = 0;
+var onSync = function (infos, reserve0, reserve1, event) { return __awaiter(void 0, void 0, void 0, function () {
+    var pc, others, token0, token1, onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent, percents, amountsPayback, _i, percents_1, amountInPercent, promiseReserveOthers, _a, others_1, pair, reserveOthers, promiseReserveOthers_1, promiseReserveOthers_1_1, reserves, e_1_1, _b, reserveOthers_1, reserve, j, _c, amountsPayback_1, amountPayback, amountIn, amountInWithFee, numerator, denominator, amountOut, gt, error_1;
+    var e_1, _d;
+    return __generator(this, function (_e) {
+        switch (_e.label) {
             case 0:
-                console.log("Initialize...");
-                _a.label = 1;
-            case 1:
-                _a.trys.push([1, 5, , 6]);
-                MATIC = utils_1.getToken('WMATIC');
-                TOKEN0 = utils_1.getToken('WBTC');
-                TOKEN1 = utils_1.getToken('WETH');
-                SUSHI_FACTORY = factoryContract.attach('0xc35DADB65012eC5796536bD9864eD8773aBc74C4');
-                QUICK_FACTORY = factoryContract.attach('0x5757371414417b8C6CAad45bAeF941aBc7d3Ab32');
-                SUSHI_ROUTER = routerContract.attach('0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506');
-                QUICK_ROUTER = routerContract.attach('0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff');
-                return [4, SUSHI_FACTORY.getPair(TOKEN0.address, TOKEN1.address)];
-            case 2:
-                pair = _a.sent();
-                if (ethers_1.BigNumber.from(pair).eq(ethers_1.BigNumber.from(ethers_1.constants.AddressZero)))
-                    throw new Error(THROW_NOT_FOUND_PAIR + ' FACTORY 1');
-                SUSHI_PAIR = pairContract.attach(pair);
-                return [4, SUSHI_PAIR.token0()];
-            case 3:
-                token0 = _a.sent();
-                if (!ethers_1.BigNumber.from(token0).eq(ethers_1.BigNumber.from(TOKEN0.address))) {
-                    temp = TOKEN0;
-                    TOKEN0 = TOKEN1;
-                    TOKEN1 = temp;
-                }
-                return [4, QUICK_FACTORY.getPair(TOKEN0.address, TOKEN1.address)];
-            case 4:
-                pair = _a.sent();
-                if (ethers_1.BigNumber.from(pair).eq(ethers_1.BigNumber.from(ethers_1.constants.AddressZero)))
-                    throw new Error(THROW_NOT_FOUND_PAIR + ' FACTORY 2');
-                QUICK_PAIR = pairContract.attach(pair);
-                tc0 = tokenContract.attach(TOKEN0.address);
-                tc1 = tokenContract.attach(TOKEN1.address);
-                return [3, 6];
-            case 5:
-                error_1 = _a.sent();
-                throw error_1;
-            case 6: return [2];
-        }
-    });
-}); };
-var swap = function () { return __awaiter(void 0, void 0, void 0, function () {
-    var amountIn, amountOutMin, deadline, tx, error_2;
-    return __generator(this, function (_a) {
-        switch (_a.label) {
-            case 0:
-                console.log("Swap...");
-                _a.label = 1;
-            case 1:
-                _a.trys.push([1, 4, , 5]);
-                amountIn = ethers_1.utils.parseEther('3000'), amountOutMin = ethers_1.utils.parseUnits('0.00001', TOKEN0.decimals), deadline = Math.floor(Date.now() / 1000) + 30;
-                return [4, QUICK_ROUTER.connect(signer).swapExactETHForTokens(amountOutMin, [MATIC.address, TOKEN0.address], signer.address, deadline, {
-                        gasPrice: ethers_1.utils.parseUnits('20', 'gwei'),
-                        gasLimit: ethers_1.utils.parseUnits('12', 'mwei'),
-                        value: amountIn
-                    })];
-            case 2:
-                tx = _a.sent();
-                return [4, tx.wait()];
-            case 3:
-                _a.sent();
-                return [3, 5];
-            case 4:
-                error_2 = _a.sent();
-                throw error_2;
-            case 5: return [2];
-        }
-    });
-}); };
-var COUNTER_ERROR = 0, COUNTER_SUCCESS = 0, COUNTER_FAIL = 0, COUNTER = 0;
-var monitoring = function (pair, reserve0, reserve1, event) { return __awaiter(void 0, void 0, void 0, function () {
-    var CONTRACT_PAIR, NAME_PAIR_BORROW, NAME_PAIR_SELL, onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent, percents, reserveOther, reserveIn, reserveOut, table, _i, percents_1, amountIn, amountInWithFee, numerator, denominator, amountOut, amountToRepay, gt, s1, s2, error_3;
-    return __generator(this, function (_a) {
-        switch (_a.label) {
-            case 0:
-                _a.trys.push([0, 2, , 3]);
-                if (pair == SUSHI_PAIR.address) {
-                    CONTRACT_PAIR = SUSHI_PAIR;
-                    NAME_PAIR_BORROW = 'SUSHI_BORROW_IN';
-                    NAME_PAIR_SELL = 'QUICK_SELL_OUT';
-                }
-                else {
-                    CONTRACT_PAIR = QUICK_PAIR;
-                    NAME_PAIR_BORROW = 'QUICK_BORROW_IN';
-                    NAME_PAIR_SELL = 'SUSHI_SELL_OUT';
-                }
+                _e.trys.push([0, 13, , 14]);
+                if (event.blockNumber == blockNumber)
+                    return [2];
+                blockNumber = event.blockNumber;
+                pc = infos.pair, others = infos.pairs, token0 = infos.token0, token1 = infos.token1;
                 onePercent = reserve0.div(100), twoPercent = reserve0.div(50), fivePercent = reserve0.div(20), tenPercent = reserve0.div(10), twentyPercent = reserve0.div(5), fiftyPercent = reserve0.div(2), percents = [onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent];
-                return [4, CONTRACT_PAIR.getReserves()];
-            case 1:
-                reserveOther = _a.sent(), reserveIn = reserveOther[0], reserveOut = reserveOther[1], table = [];
+                amountsPayback = [];
                 for (_i = 0, percents_1 = percents; _i < percents_1.length; _i++) {
-                    amountIn = percents_1[_i];
-                    amountInWithFee = amountIn.mul(997), numerator = amountInWithFee.mul(reserveOut), denominator = reserveIn.mul(1000).add(amountInWithFee), amountOut = numerator.div(denominator), amountToRepay = reserve1.mul(1000).mul(amountIn).div(reserve0.mul(997)).add(1), gt = amountOut.gt(amountToRepay), s1 = gt ? amountOut.sub(amountToRepay).mul(2) : amountToRepay.sub(amountOut).mul(2), s2 = s1.div(amountOut.add(amountToRepay)).mul(1e5);
-                    table.push({
-                        NAME_PAIR_BORROW: ethers_1.utils.formatUnits(amountIn, TOKEN0.decimals),
-                        NAME_PAIR_SELL: ethers_1.utils.formatUnits(amountOut, TOKEN1.decimals),
-                        Repay: ethers_1.utils.formatUnits(amountToRepay, TOKEN1.decimals),
-                        'CallSwap?': gt,
-                        difference: s2.toString()
-                    });
-                    if (gt)
-                        COUNTER_SUCCESS++;
-                    else
-                        COUNTER_FAIL++;
+                    amountInPercent = percents_1[_i];
+                    amountsPayback.push(reserve1.mul(1000).mul(amountInPercent).div(reserve0.mul(997)).add(1));
+                }
+                promiseReserveOthers = [];
+                for (_a = 0, others_1 = others; _a < others_1.length; _a++) {
+                    pair = others_1[_a];
+                    promiseReserveOthers.push(pair.getReserves());
+                }
+                reserveOthers = [];
+                _e.label = 1;
+            case 1:
+                _e.trys.push([1, 6, 7, 12]);
+                promiseReserveOthers_1 = __asyncValues(promiseReserveOthers);
+                _e.label = 2;
+            case 2: return [4, promiseReserveOthers_1.next()];
+            case 3:
+                if (!(promiseReserveOthers_1_1 = _e.sent(), !promiseReserveOthers_1_1.done)) return [3, 5];
+                reserves = promiseReserveOthers_1_1.value;
+                reserveOthers.push({ r0: reserves[0], r1: reserves[1] });
+                _e.label = 4;
+            case 4: return [3, 2];
+            case 5: return [3, 12];
+            case 6:
+                e_1_1 = _e.sent();
+                e_1 = { error: e_1_1 };
+                return [3, 12];
+            case 7:
+                _e.trys.push([7, , 10, 11]);
+                if (!(promiseReserveOthers_1_1 && !promiseReserveOthers_1_1.done && (_d = promiseReserveOthers_1["return"]))) return [3, 9];
+                return [4, _d.call(promiseReserveOthers_1)];
+            case 8:
+                _e.sent();
+                _e.label = 9;
+            case 9: return [3, 11];
+            case 10:
+                if (e_1) throw e_1.error;
+                return [7];
+            case 11: return [7];
+            case 12:
+                for (_b = 0, reserveOthers_1 = reserveOthers; _b < reserveOthers_1.length; _b++) {
+                    reserve = reserveOthers_1[_b];
+                    j = 0;
+                    for (_c = 0, amountsPayback_1 = amountsPayback; _c < amountsPayback_1.length; _c++) {
+                        amountPayback = amountsPayback_1[_c];
+                        amountIn = percents[j], amountInWithFee = amountIn.mul(997), numerator = amountInWithFee.mul(reserve.r1), denominator = reserve.r0.mul(1000).add(amountInWithFee), amountOut = numerator.div(denominator), gt = amountOut.gt(amountPayback);
+                        if (gt)
+                            COUNTER_SUCCESS++;
+                        else
+                            COUNTER_FAIL++;
+                        j++;
+                    }
                 }
                 COUNTER++;
-                console.log(NAME_PAIR_BORROW + " -> " + NAME_PAIR_SELL + " ///" + COUNTER);
-                return [3, 3];
-            case 2:
-                error_3 = _a.sent();
-                throw error_3;
-            case 3: return [2];
+                return [3, 14];
+            case 13:
+                error_1 = _e.sent();
+                throw error_1;
+            case 14: return [2];
         }
     });
 }); };
-var listener = function () { return __awaiter(void 0, void 0, void 0, function () {
-    return __generator(this, function (_a) {
-        console.log("Listening...");
-        try {
-            SUSHI_PAIR.on('Sync', function (reserve0, reserve1, event) { return __awaiter(void 0, void 0, void 0, function () {
-                var error_4;
-                return __generator(this, function (_a) {
-                    switch (_a.label) {
-                        case 0:
-                            _a.trys.push([0, 2, , 3]);
-                            return [4, monitoring(SUSHI_PAIR.address, reserve0, reserve1, event)];
-                        case 1:
-                            _a.sent();
-                            return [3, 3];
-                        case 2:
-                            error_4 = _a.sent();
-                            COUNTER_ERROR++;
-                            return [3, 3];
-                        case 3: return [2];
-                    }
-                });
-            }); });
-            QUICK_PAIR.on('Sync', function (reserve0, reserve1, event) { return __awaiter(void 0, void 0, void 0, function () {
-                var error_5;
-                return __generator(this, function (_a) {
-                    switch (_a.label) {
-                        case 0:
-                            _a.trys.push([0, 2, , 3]);
-                            return [4, monitoring(QUICK_PAIR.address, reserve0, reserve1, event)];
-                        case 1:
-                            _a.sent();
-                            return [3, 3];
-                        case 2:
-                            error_5 = _a.sent();
-                            COUNTER_ERROR++;
-                            return [3, 3];
-                        case 3: return [2];
-                    }
-                });
-            }); });
+var logs = function () {
+    console.table({ PID: process.pid, Date: new Date().toDateString(), COUNTER: COUNTER, COUNTER_SUCCESS: COUNTER_SUCCESS, COUNTER_FAIL: COUNTER_FAIL });
+};
+var app = function () { return __awaiter(void 0, void 0, void 0, function () {
+    var tokenA, tokenB, tokenC, tokenE, tokens, i, _i, tokens_1, t0, _a, tokens_2, t1, flashswap, error_2, _b, FLASHSWAPS_1, flashswap, error_3;
+    return __generator(this, function (_c) {
+        switch (_c.label) {
+            case 0:
+                console.log("App start");
+                _c.label = 1;
+            case 1:
+                _c.trys.push([1, 11, , 12]);
+                setInterval(logs, 1e3 * 45);
+                tokenA = utils_1.getToken('WMATIC'), tokenB = utils_1.getToken('WBTC'), tokenC = utils_1.getToken('WETH'), tokenE = utils_1.getToken('USDC');
+                tokens = [tokenA, tokenB, tokenC, tokenE];
+                console.log("Create instances");
+                i = 0;
+                _i = 0, tokens_1 = tokens;
+                _c.label = 2;
+            case 2:
+                if (!(_i < tokens_1.length)) return [3, 10];
+                t0 = tokens_1[_i];
+                _a = 0, tokens_2 = tokens;
+                _c.label = 3;
+            case 3:
+                if (!(_a < tokens_2.length)) return [3, 9];
+                t1 = tokens_2[_a];
+                if (t0.address == t1.address)
+                    return [3, 8];
+                flashswap = new flashswap_1["default"](t0, t1);
+                _c.label = 4;
+            case 4:
+                _c.trys.push([4, 6, , 7]);
+                return [4, flashswap.initialize()];
+            case 5:
+                _c.sent();
+                FLASHSWAPS.push(flashswap);
+                return [3, 7];
+            case 6:
+                error_2 = _c.sent();
+                i--;
+                return [3, 7];
+            case 7:
+                i++;
+                console.log("\u0167flashswap[" + i + "]");
+                _c.label = 8;
+            case 8:
+                _a++;
+                return [3, 3];
+            case 9:
+                _i++;
+                return [3, 2];
+            case 10:
+                console.log("--> Created");
+                console.log("Create listeners");
+                i = 0;
+                for (_b = 0, FLASHSWAPS_1 = FLASHSWAPS; _b < FLASHSWAPS_1.length; _b++) {
+                    flashswap = FLASHSWAPS_1[_b];
+                    flashswap.onSync(onSync);
+                }
+                console.log("--> Created");
+                return [3, 12];
+            case 11:
+                error_3 = _c.sent();
+                throw error_3;
+            case 12: return [2];
         }
-        catch (error) {
-            throw error;
-        }
-        return [2];
     });
 }); };
 (function () { return __awaiter(void 0, void 0, void 0, function () {
-    var error_6;
+    var error_4;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
-                _a.trys.push([0, 3, , 4]);
-                setInterval(function () {
-                    console.log("logs ///" + COUNTER);
-                    console.table([
-                        {
-                            COUNTER_ERROR: COUNTER_ERROR,
-                            COUNTER_FAIL: COUNTER_FAIL,
-                            COUNTER_SUCCESS: COUNTER_SUCCESS
-                        },
-                    ]);
-                }, 1e3 * 60);
-                return [4, initalize()];
+                console.log("Arbitrage start");
+                _a.label = 1;
             case 1:
-                _a.sent();
-                return [4, listener()];
+                _a.trys.push([1, 3, , 4]);
+                return [4, app()];
             case 2:
                 _a.sent();
                 return [3, 4];
             case 3:
-                error_6 = _a.sent();
-                console.log('####');
-                console.error(error_6);
-                console.log('####');
+                error_4 = _a.sent();
+                console.error('###');
+                console.error(error_4);
+                console.error('###');
                 return [3, 4];
             case 4: return [2];
         }
     });
 }); })();
+var lockClose = false;
 var close = function () {
-    console.table([
-        {
-            COUNTER_ERROR: COUNTER_ERROR,
-            COUNTER_FAIL: COUNTER_FAIL,
-            COUNTER_SUCCESS: COUNTER_SUCCESS
-        },
-    ]);
-    provider.removeAllListeners();
-    console.log("Clear listener...\nDone.");
+    if (lockClose)
+        return;
+    lockClose = true;
+    console.log("\nexit///\n");
+    logs();
+    flashswap_1["default"].removeAllListeners();
+    process.exit();
 };
 process.on('exit', close);
 process.on('SIGINT', close);
