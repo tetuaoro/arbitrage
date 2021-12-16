@@ -1,4 +1,7 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 exports.__esModule = true;
 exports.ROUTERS = exports.FACTORIES = exports.EXCHANGE_INFOS = exports.required = exports.eqAddress = exports.getToken = exports.tokenContract = exports.pairContract = exports.routerContract = exports.factoryContract = exports.signer = exports.provider = exports.NETWORK = exports.THROW_NOT_FOUND_TOKEN = exports.THROW_NOT_FOUND_PAIR = exports.isDevelopment = void 0;
 var dotenv_1 = require("dotenv");
@@ -7,7 +10,7 @@ var IUniswapV2Factory_json_1 = require("./abi/IUniswapV2Factory.json");
 var IUniswapV2Router01_json_1 = require("./abi/IUniswapV2Router01.json");
 var IUniswapV2Pair_json_1 = require("./abi/IUniswapV2Pair.json");
 var IERC20_json_1 = require("./abi/IERC20.json");
-var TOKENS = require("./tokens.json");
+var tokens_json_1 = __importDefault(require("./tokens.json"));
 dotenv_1.config();
 exports.isDevelopment = process.env['NODE_ENV'] == 'dev';
 exports.THROW_NOT_FOUND_PAIR = 'THROW_NOT_FOUND_PAIR', exports.THROW_NOT_FOUND_TOKEN = 'THROW_NOT_FOUND_TOKEN';
@@ -18,7 +21,7 @@ exports.NETWORK = 137, exports.provider = exports.isDevelopment
         projectSecret: process.env['INFURA_SECRET']
     }), exports.signer = new ethers_1.Wallet(exports.isDevelopment ? process.env['GANACHE_PRIVATE_KEY'] : process.env['PRIVATE_KEY'], exports.provider), exports.factoryContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IUniswapV2Factory_json_1.abi, exports.provider), exports.routerContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IUniswapV2Router01_json_1.abi, exports.provider), exports.pairContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IUniswapV2Pair_json_1.abi, exports.provider), exports.tokenContract = new ethers_1.Contract(ethers_1.constants.AddressZero, IERC20_json_1.abi, exports.provider);
 exports.getToken = function (symbol) {
-    var token = TOKENS.find(function (t) { return t.symbol == symbol; });
+    var token = tokens_json_1["default"].find(function (t) { return t.symbol == symbol; });
     if (typeof token === 'undefined')
         throw new Error(exports.THROW_NOT_FOUND_TOKEN);
     return token;

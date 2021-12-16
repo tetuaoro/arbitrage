@@ -42,10 +42,20 @@ var __asyncValues = (this && this.__asyncValues) || function (o) {
     function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
     function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 exports.__esModule = true;
 var ethers_1 = require("ethers");
-var flashswap_1 = require("./flashswap");
+var dayjs_1 = __importDefault(require("dayjs"));
+require("dayjs/locale/fr");
+var utc_1 = __importDefault(require("dayjs/plugin/utc"));
+var timezone_1 = __importDefault(require("dayjs/plugin/timezone"));
+var flashswap_1 = __importDefault(require("./flashswap"));
 var utils_1 = require("./utils");
+dayjs_1["default"].extend(utc_1["default"]);
+dayjs_1["default"].extend(timezone_1["default"]);
+dayjs_1["default"].tz.setDefault('Pacific/Tahiti');
 var FLASHSWAPS = [];
 var BLOCKNUMBER = 0, COUNTER_SUCCESS = 0, COUNTER_FAIL = 0, COUNTER = 0, START_ON_SYNC = false;
 var onSync = function (infos, reserve0, reserve1, event) { return __awaiter(void 0, void 0, void 0, function () {
@@ -147,14 +157,14 @@ var onSync = function (infos, reserve0, reserve1, event) { return __awaiter(void
     });
 }); };
 var logs = function () {
-    console.table({ PID: process.pid, Date: new Date().toDateString(), COUNTER: COUNTER, COUNTER_SUCCESS: COUNTER_SUCCESS, COUNTER_FAIL: COUNTER_FAIL });
+    console.table({ PID: process.pid, Date: dayjs_1["default"]().format('D/M/YYYY H:m:s'), COUNTER: COUNTER, COUNTER_SUCCESS: COUNTER_SUCCESS, COUNTER_FAIL: COUNTER_FAIL });
 };
 var app = function () { return __awaiter(void 0, void 0, void 0, function () {
     var tokenA, tokenB, tokenC, tokenE, tokens, i, _i, tokens_1, t0, j, _a, tokens_2, t1, flashswap, error_2, _b, FLASHSWAPS_1, flashswap, _c, error_3;
     return __generator(this, function (_d) {
         switch (_d.label) {
             case 0:
-                console.log("App start");
+                console.log("App start " + dayjs_1["default"]().format('D/M/YYYY H:m:s'));
                 _d.label = 1;
             case 1:
                 _d.trys.push([1, 16, , 17]);
@@ -189,6 +199,8 @@ var app = function () { return __awaiter(void 0, void 0, void 0, function () {
             case 6:
                 error_2 = _d.sent();
                 console.log("error instanciate at " + i + "-" + j);
+                console.log(error_2);
+                process.exit();
                 return [3, 7];
             case 7:
                 console.log("\tflashswap[" + j + "]");

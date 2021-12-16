@@ -4,7 +4,7 @@ import { abi as FACTORY_ABI } from './abi/IUniswapV2Factory.json'
 import { abi as ROUTER_ABI } from './abi/IUniswapV2Router01.json'
 import { abi as PAIR_ABI } from './abi/IUniswapV2Pair.json'
 import { abi as TOKEN_ABI } from './abi/IERC20.json'
-import * as TOKENS from './tokens.json'
+import TOKENS from './tokens.json'
 
 /* CONFIGURATION */
 config()

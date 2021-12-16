@@ -1,6 +1,14 @@
 import { Contract, BigNumber, Event, utils } from 'ethers'
+import dayjs from 'dayjs'
+import 'dayjs/locale/fr'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
 import Flashswap from './flashswap'
-import { eqAddress, EXCHANGE_INFOS, getToken } from './utils'
+import { getToken } from './utils'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
+dayjs.tz.setDefault('Pacific/Tahiti')
 
 let FLASHSWAPS: Flashswap[] = []
 
@@ -89,11 +97,11 @@ const onSync = async (infos: any, reserve0: BigNumber, reserve1: BigNumber, even
 }
 
 const logs = () => {
-	console.table({ PID: process.pid, Date: new Date().toDateString(), COUNTER, COUNTER_SUCCESS, COUNTER_FAIL })
+	console.table({ PID: process.pid, Date: dayjs().format('D/M/YYYY H:m:s'), COUNTER, COUNTER_SUCCESS, COUNTER_FAIL })
 }
 
 const app = async () => {
-	console.log(`App start`)
+	console.log(`App start ${dayjs().format('D/M/YYYY H:m:s')}`)
 	try {
 		setInterval(logs, 1e3 * 45)
 		const tokenA = getToken('WMATIC'),
@@ -116,6 +124,9 @@ const app = async () => {
 					FLASHSWAPS.push(flashswap)
 				} catch (error) {
 					console.log(`error instanciate at ${i}-${j}`)
+					console.log(error)
+					process.exit()
+					
 				}
 				console.log(`\tflashswap[${j}]`)
 			}
