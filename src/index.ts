@@ -14,7 +14,6 @@ const onSync = async (infos: any, reserve0: BigNumber, reserve1: BigNumber, even
 		if (!START_ON_SYNC) return
 		if (event.blockNumber == BLOCKNUMBER) return
 		BLOCKNUMBER = event.blockNumber // lockable
-		let t0 = Date.now()
 
 		const pc: Contract = infos.pair,
 			others: Contract[] = infos.pairs,

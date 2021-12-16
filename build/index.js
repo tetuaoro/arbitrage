@@ -49,7 +49,7 @@ var utils_1 = require("./utils");
 var FLASHSWAPS = [];
 var BLOCKNUMBER = 0, COUNTER_SUCCESS = 0, COUNTER_FAIL = 0, COUNTER = 0, START_ON_SYNC = false;
 var onSync = function (infos, reserve0, reserve1, event) { return __awaiter(void 0, void 0, void 0, function () {
-    var t0, pc, others, token0, token1, onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent, percentsToNumber, percents, amountsPayback, _i, percents_1, amountInPercent, promiseReserveOthers, _a, others_1, pair, reserveOthers, promiseReserveOthers_1, promiseReserveOthers_1_1, reserves, e_1_1, table, showTable, i, _b, reserveOthers_1, reserve, j, _c, amountsPayback_1, amountPayback, amountIn, amountInWithFee, numerator, denominator, amountOut, gt, error_1;
+    var pc, others, token0, token1, onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent, percentsToNumber, percents, amountsPayback, _i, percents_1, amountInPercent, promiseReserveOthers, _a, others_1, pair, reserveOthers, promiseReserveOthers_1, promiseReserveOthers_1_1, reserves, e_1_1, table, showTable, i, _b, reserveOthers_1, reserve, j, _c, amountsPayback_1, amountPayback, amountIn, amountInWithFee, numerator, denominator, amountOut, gt, error_1;
     var _d;
     var e_1, _e;
     return __generator(this, function (_f) {
@@ -61,7 +61,6 @@ var onSync = function (infos, reserve0, reserve1, event) { return __awaiter(void
                 if (event.blockNumber == BLOCKNUMBER)
                     return [2];
                 BLOCKNUMBER = event.blockNumber;
-                t0 = Date.now();
                 pc = infos.pair, others = infos.pairs, token0 = infos.token0, token1 = infos.token1;
                 onePercent = reserve0.div(100), twoPercent = reserve0.div(50), fivePercent = reserve0.div(20), tenPercent = reserve0.div(10), twentyPercent = reserve0.div(5), fiftyPercent = reserve0.div(2), percentsToNumber = [1, 2, 5, 10, 20, 50], percents = [onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent];
                 amountsPayback = [];
@@ -134,11 +133,11 @@ var onSync = function (infos, reserve0, reserve1, event) { return __awaiter(void
                     table.push({});
                     i++;
                 }
-                console.log("Borrow : " + flashswap_1["default"].getNameExchange(pc.address));
-                console.table(table);
+                if (showTable) {
+                    console.log("Borrow : " + flashswap_1["default"].getNameExchange(pc.address));
+                    console.table(table);
+                }
                 COUNTER++;
-                console.log("time = " + (Date.now() - t0));
-                process.exit();
                 return [3, 14];
             case 13:
                 error_1 = _f.sent();
