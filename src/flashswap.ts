@@ -23,13 +23,16 @@ export default class Flashswap {
 
 	async initialize() {
 		try {
-			let i = 0
+			let i = 0,
+				switchTokens = false
 			for (const fc of this._factory) {
 				let pair: Address = await fc.getPair(this._token0.address, this._token1.address)
 				required(!eqAddress(constants.AddressZero, pair), `${Flashswap.THROW_NOT_AN_ADDRESS} #AddressZero`)
 				this._pairs.push(pairContract.attach(pair))
-				EXCHANGE_INFOS[i].pair = pair
+				EXCHANGE_INFOS[i].pair.push(pair)
 				i++
+				if (switchTokens) continue
+				switchTokens = true
 				let token0: Address = await this._pairs[this._pairs.length - 1].token0()
 				if (!eqAddress(this._token0.address, token0)) {
 					let temp = this._token0
@@ -42,19 +45,41 @@ export default class Flashswap {
 		}
 	}
 
+	getPairs() {
+		return this._pairs
+	}
+
 	/**
 	 * parameters (extras, BigNumber, BigNumber, Event)
 	 *
 	 * @param {CallableFunction} fn
 	 * @memberof Flashswap
 	 */
-	onSync(fn: CallableFunction) {
+	async onSync(fn: CallableFunction) {
+		let kLasts: BigNumber[] = [],
+			_pairs: Contract[] = []
 		for (const pair of this._pairs) {
+			let kLast: BigNumber = await pair.kLast()
+			kLasts.push(kLast)
+		}
+		let myAvg = kLasts
+				.reduce((a, b) => a.add(b))
+				.div(kLasts.length)
+				.div(1000),
+			i = 0
+		for (const kLast of kLasts) {
+			if (kLast.gt(myAvg)) _pairs.push(this._pairs[i])
+			i++
+		}
+		let listenerInstanciated = 0
+		for (const pair of _pairs) {
+			if (_pairs.length == 1) continue
+			listenerInstanciated++
 			let infos = {
 				token0: this._token0,
 				token1: this._token1,
 				pair,
-				pairs: this._pairs.filter((pc) => pc.address != pair.address),
+				pairs: _pairs.filter((pc) => !eqAddress(pc.address, pair.address)),
 			}
 			pair.on('Sync', (reserve0: BigNumber, reserve1: BigNumber, event: Event) => {
 				try {
@@ -64,6 +89,7 @@ export default class Flashswap {
 				}
 			})
 		}
+		return listenerInstanciated
 	}
 
 	static removeAllListeners() {
@@ -71,8 +97,13 @@ export default class Flashswap {
 	}
 
 	static getNameExchange(address: Address) {
-		let exchange = EXCHANGE_INFOS.find((i) => i.pair == address)
-		if (typeof exchange === 'undefined') return ''
-		return exchange.name
+		let exchange = address.slice(0, 8)
+		for (const ex of EXCHANGE_INFOS) {
+			if (typeof ex.pair.find((p) => eqAddress(p, address)) != 'undefined') {
+				exchange = ex.name
+				break
+			}
+		}
+		return exchange
 	}
 }

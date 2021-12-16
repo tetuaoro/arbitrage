@@ -39,30 +39,35 @@ export const required = (condition: boolean, message?: string) => {
 	if (!condition) throw new Error(message || 'Required: Une erreur est survenue !')
 }
 
-export const EXCHANGE_INFOS = [
+export const EXCHANGE_INFOS: {
+	name: string
+	factory: Address
+	router: Address
+	pair: Address[]
+}[] = [
 	{
 		name: 'Sushiswap',
 		factory: '0xc35DADB65012eC5796536bD9864eD8773aBc74C4',
 		router: '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506',
-		pair: '',
+		pair: [],
 	},
 	{
 		name: 'Quickswap',
 		factory: '0x5757371414417b8C6CAad45bAeF941aBc7d3Ab32',
 		router: '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff',
-		pair: '',
+		pair: [],
 	},
 	{
 		name: 'Apeswap',
 		factory: '0xCf083Be4164828f00cAE704EC15a36D711491284',
 		router: '0xC0788A3aD43d79aa53B09c2EaCc313A787d1d607',
-		pair: '',
+		pair: [],
 	},
 	{
 		name: 'Jetswap',
 		factory: '0x668ad0ed2622C62E24f0d5ab6B6Ac1b9D2cD4AC7',
 		router: '0x5C6EC38fb0e2609672BDf628B1fD605A523E5923',
-		pair: '',
+		pair: [],
 	},
 ]
 

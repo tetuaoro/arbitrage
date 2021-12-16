@@ -49,12 +49,12 @@ var Flashswap = (function () {
     }
     Flashswap.prototype.initialize = function () {
         return __awaiter(this, void 0, void 0, function () {
-            var tokenSwitch, i, _i, _a, fc, pair, token0, temp, error_1;
+            var i, switchTokens, _i, _a, fc, pair, token0, temp, error_1;
             return __generator(this, function (_b) {
                 switch (_b.label) {
                     case 0:
                         _b.trys.push([0, 6, , 7]);
-                        tokenSwitch = false, i = 0;
+                        i = 0, switchTokens = false;
                         _i = 0, _a = this._factory;
                         _b.label = 1;
                     case 1:
@@ -65,11 +65,11 @@ var Flashswap = (function () {
                         pair = _b.sent();
                         utils_1.required(!utils_1.eqAddress(ethers_1.constants.AddressZero, pair), Flashswap.THROW_NOT_AN_ADDRESS + " #AddressZero");
                         this._pairs.push(utils_1.pairContract.attach(pair));
-                        utils_1.EXCHANGE_INFOS[i].pair = pair;
+                        utils_1.EXCHANGE_INFOS[i].pair.push(pair);
                         i++;
-                        if (tokenSwitch)
+                        if (switchTokens)
                             return [3, 4];
-                        tokenSwitch = true;
+                        switchTokens = true;
                         return [4, this._pairs[this._pairs.length - 1].token0()];
                     case 3:
                         token0 = _b.sent();
@@ -95,36 +95,79 @@ var Flashswap = (function () {
         return this._pairs;
     };
     Flashswap.prototype.onSync = function (fn) {
-        var _loop_1 = function (pair) {
-            var infos = {
-                token0: this_1._token0,
-                token1: this_1._token1,
-                pair: pair,
-                pairs: this_1._pairs.filter(function (pc) { return pc.address != pair.address; })
-            };
-            pair.on('Sync', function (reserve0, reserve1, event) {
-                try {
-                    fn(infos, reserve0, reserve1, event);
-                }
-                catch (error) {
-                    throw error;
+        return __awaiter(this, void 0, void 0, function () {
+            var kLasts, _pairs, _i, _a, pair, kLast, myAvg, i, _b, kLasts_1, kLast, listenerInstanciated, _loop_1, this_1, _c, _pairs_1, pair;
+            return __generator(this, function (_d) {
+                switch (_d.label) {
+                    case 0:
+                        kLasts = [], _pairs = [];
+                        _i = 0, _a = this._pairs;
+                        _d.label = 1;
+                    case 1:
+                        if (!(_i < _a.length)) return [3, 4];
+                        pair = _a[_i];
+                        return [4, pair.kLast()];
+                    case 2:
+                        kLast = _d.sent();
+                        kLasts.push(kLast);
+                        _d.label = 3;
+                    case 3:
+                        _i++;
+                        return [3, 1];
+                    case 4:
+                        myAvg = kLasts
+                            .reduce(function (a, b) { return a.add(b); })
+                            .div(kLasts.length)
+                            .div(1000), i = 0;
+                        for (_b = 0, kLasts_1 = kLasts; _b < kLasts_1.length; _b++) {
+                            kLast = kLasts_1[_b];
+                            if (kLast.gt(myAvg))
+                                _pairs.push(this._pairs[i]);
+                            i++;
+                        }
+                        listenerInstanciated = 0;
+                        _loop_1 = function (pair) {
+                            if (_pairs.length == 1)
+                                return "continue";
+                            listenerInstanciated++;
+                            var infos = {
+                                token0: this_1._token0,
+                                token1: this_1._token1,
+                                pair: pair,
+                                pairs: _pairs.filter(function (pc) { return !utils_1.eqAddress(pc.address, pair.address); })
+                            };
+                            pair.on('Sync', function (reserve0, reserve1, event) {
+                                try {
+                                    fn(infos, reserve0, reserve1, event);
+                                }
+                                catch (error) {
+                                    throw error;
+                                }
+                            });
+                        };
+                        this_1 = this;
+                        for (_c = 0, _pairs_1 = _pairs; _c < _pairs_1.length; _c++) {
+                            pair = _pairs_1[_c];
+                            _loop_1(pair);
+                        }
+                        return [2, listenerInstanciated];
                 }
             });
-        };
-        var this_1 = this;
-        for (var _i = 0, _a = this._pairs; _i < _a.length; _i++) {
-            var pair = _a[_i];
-            _loop_1(pair);
-        }
+        });
     };
     Flashswap.removeAllListeners = function () {
         utils_1.provider.removeAllListeners();
     };
     Flashswap.getNameExchange = function (address) {
-        var exchange = utils_1.EXCHANGE_INFOS.find(function (i) { return i.pair == address; });
-        if (typeof exchange === 'undefined')
-            return '';
-        return exchange.name;
+        var exchange = address.slice(0, 8);
+        for (var _i = 0, EXCHANGE_INFOS_1 = utils_1.EXCHANGE_INFOS; _i < EXCHANGE_INFOS_1.length; _i++) {
+            var ex = EXCHANGE_INFOS_1[_i];
+            if (typeof ex.pair.find(function (p) { return utils_1.eqAddress(p, address); }) != 'undefined') {
+                exchange = ex.name;
+                break;
+            }
+        }
+        return exchange;
     };
     Flashswap.THROW_NOT_AN_ADDRESS = 'Flashswap: THROW_NOT_AN_ADDRESS';
     Flashswap.THROW_NO_FACTORIES = 'Flashswap: THROW_NO_FACTORIES';

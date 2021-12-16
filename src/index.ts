@@ -1,17 +1,20 @@
 import { Contract, BigNumber, Event, utils } from 'ethers'
 import Flashswap from './flashswap'
-import { getToken } from './utils'
+import { eqAddress, EXCHANGE_INFOS, getToken } from './utils'
 
 let FLASHSWAPS: Flashswap[] = []
 
 let BLOCKNUMBER = 0,
 	COUNTER_SUCCESS = 0,
 	COUNTER_FAIL = 0,
-	COUNTER = 0
+	COUNTER = 0,
+	START_ON_SYNC = false
 const onSync = async (infos: any, reserve0: BigNumber, reserve1: BigNumber, event: Event) => {
 	try {
+		if (!START_ON_SYNC) return
 		if (event.blockNumber == BLOCKNUMBER) return
 		BLOCKNUMBER = event.blockNumber // lockable
+		let t0 = Date.now()
 
 		const pc: Contract = infos.pair,
 			others: Contract[] = infos.pairs,
@@ -24,6 +27,7 @@ const onSync = async (infos: any, reserve0: BigNumber, reserve1: BigNumber, even
 			tenPercent = reserve0.div(10),
 			twentyPercent = reserve0.div(5),
 			fiftyPercent = reserve0.div(2),
+			percentsToNumber = [1, 2, 5, 10, 20, 50],
 			percents = [onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent]
 
 		const amountsPayback: BigNumber[] = []
@@ -45,7 +49,8 @@ const onSync = async (infos: any, reserve0: BigNumber, reserve1: BigNumber, even
 		}
 
 		const table = []
-		let gt: boolean
+		let showTable = false,
+			i = 0
 		for (const reserve of reserveOthers) {
 			let j = 0
 			for (const amountPayback of amountsPayback) {
@@ -53,21 +58,31 @@ const onSync = async (infos: any, reserve0: BigNumber, reserve1: BigNumber, even
 					amountInWithFee = amountIn.mul(997),
 					numerator = amountInWithFee.mul(reserve.r1),
 					denominator = reserve.r0.mul(1000).add(amountInWithFee),
-					amountOut = numerator.div(denominator)
-				gt = amountOut.gt(amountPayback)
+					amountOut = numerator.div(denominator),
+					gt = amountOut.gt(amountPayback)
 				table.push({
-					[token0.symbol]: utils.formatUnits(amountIn, token0.decimals),
+					'#': `${percentsToNumber[j]}%`,
+					[`${token0.symbol}_BORROW`]: utils.formatUnits(amountIn, token0.decimals),
+					BLOCKNUMBER,
+					Sell: Flashswap.getNameExchange(others[i].address),
 					[token1.symbol]: utils.formatUnits(amountOut, token1.decimals),
-					Payback: utils.formatUnits(amountPayback, token1.decimals),
+					[`${token1.symbol}_PAYBACK`]: utils.formatUnits(amountPayback, token1.decimals),
 					'Call?': gt,
 				})
 
-				if (gt) COUNTER_SUCCESS++
-				else COUNTER_FAIL++
+				if (gt) {
+					COUNTER_SUCCESS++
+					showTable = true
+				} else COUNTER_FAIL++
 				j++
 			}
+			table.push({})
+			i++
 		}
-		if (gt) console.table(table)
+		if (showTable) {
+			console.log(`Borrow : ${Flashswap.getNameExchange(pc.address)}`)
+			console.table(table)
+		}
 		COUNTER++
 	} catch (error) {
 		throw error
@@ -92,26 +107,29 @@ const app = async () => {
 		console.log(`Create instances`)
 		let i = 0
 		for (const t0 of tokens) {
+			let j = -1
 			for (const t1 of tokens) {
-				if (t0.address == t1.address) continue
+				j++
+				if (i >= j) continue
 				let flashswap = new Flashswap(t0, t1)
 				try {
 					await flashswap.initialize()
 					FLASHSWAPS.push(flashswap)
 				} catch (error) {
-					i--
+					console.log(`error instanciate at ${i}-${j}`)
 				}
-				i++
-				console.log(`\ŧflashswap[${i}]`)
+				console.log(`\tflashswap[${j}]`)
 			}
+			i++
 		}
 		console.log(`--> Created`)
 		console.log(`Create listeners`)
 		i = 0
 		for (const flashswap of FLASHSWAPS) {
-			flashswap.onSync(onSync)
+			i += await flashswap.onSync(onSync)
 		}
-		console.log(`--> Created`)
+		console.log(`--> Created ${i} listeners`)
+		START_ON_SYNC = true
 	} catch (error) {
 		throw error
 	}

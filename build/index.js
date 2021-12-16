@@ -43,22 +43,27 @@ var __asyncValues = (this && this.__asyncValues) || function (o) {
     function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
 };
 exports.__esModule = true;
+var ethers_1 = require("ethers");
 var flashswap_1 = require("./flashswap");
 var utils_1 = require("./utils");
 var FLASHSWAPS = [];
-var blockNumber = 0, COUNTER_SUCCESS = 0, COUNTER_FAIL = 0, COUNTER = 0;
+var BLOCKNUMBER = 0, COUNTER_SUCCESS = 0, COUNTER_FAIL = 0, COUNTER = 0, START_ON_SYNC = false;
 var onSync = function (infos, reserve0, reserve1, event) { return __awaiter(void 0, void 0, void 0, function () {
-    var pc, others, token0, token1, onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent, percents, amountsPayback, _i, percents_1, amountInPercent, promiseReserveOthers, _a, others_1, pair, reserveOthers, promiseReserveOthers_1, promiseReserveOthers_1_1, reserves, e_1_1, _b, reserveOthers_1, reserve, j, _c, amountsPayback_1, amountPayback, amountIn, amountInWithFee, numerator, denominator, amountOut, gt, error_1;
-    var e_1, _d;
-    return __generator(this, function (_e) {
-        switch (_e.label) {
+    var t0, pc, others, token0, token1, onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent, percentsToNumber, percents, amountsPayback, _i, percents_1, amountInPercent, promiseReserveOthers, _a, others_1, pair, reserveOthers, promiseReserveOthers_1, promiseReserveOthers_1_1, reserves, e_1_1, table, showTable, i, _b, reserveOthers_1, reserve, j, _c, amountsPayback_1, amountPayback, amountIn, amountInWithFee, numerator, denominator, amountOut, gt, error_1;
+    var _d;
+    var e_1, _e;
+    return __generator(this, function (_f) {
+        switch (_f.label) {
             case 0:
-                _e.trys.push([0, 13, , 14]);
-                if (event.blockNumber == blockNumber)
+                _f.trys.push([0, 13, , 14]);
+                if (!START_ON_SYNC)
                     return [2];
-                blockNumber = event.blockNumber;
+                if (event.blockNumber == BLOCKNUMBER)
+                    return [2];
+                BLOCKNUMBER = event.blockNumber;
+                t0 = Date.now();
                 pc = infos.pair, others = infos.pairs, token0 = infos.token0, token1 = infos.token1;
-                onePercent = reserve0.div(100), twoPercent = reserve0.div(50), fivePercent = reserve0.div(20), tenPercent = reserve0.div(10), twentyPercent = reserve0.div(5), fiftyPercent = reserve0.div(2), percents = [onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent];
+                onePercent = reserve0.div(100), twoPercent = reserve0.div(50), fivePercent = reserve0.div(20), tenPercent = reserve0.div(10), twentyPercent = reserve0.div(5), fiftyPercent = reserve0.div(2), percentsToNumber = [1, 2, 5, 10, 20, 50], percents = [onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent];
                 amountsPayback = [];
                 for (_i = 0, percents_1 = percents; _i < percents_1.length; _i++) {
                     amountInPercent = percents_1[_i];
@@ -70,53 +75,73 @@ var onSync = function (infos, reserve0, reserve1, event) { return __awaiter(void
                     promiseReserveOthers.push(pair.getReserves());
                 }
                 reserveOthers = [];
-                _e.label = 1;
+                _f.label = 1;
             case 1:
-                _e.trys.push([1, 6, 7, 12]);
+                _f.trys.push([1, 6, 7, 12]);
                 promiseReserveOthers_1 = __asyncValues(promiseReserveOthers);
-                _e.label = 2;
+                _f.label = 2;
             case 2: return [4, promiseReserveOthers_1.next()];
             case 3:
-                if (!(promiseReserveOthers_1_1 = _e.sent(), !promiseReserveOthers_1_1.done)) return [3, 5];
+                if (!(promiseReserveOthers_1_1 = _f.sent(), !promiseReserveOthers_1_1.done)) return [3, 5];
                 reserves = promiseReserveOthers_1_1.value;
                 reserveOthers.push({ r0: reserves[0], r1: reserves[1] });
-                _e.label = 4;
+                _f.label = 4;
             case 4: return [3, 2];
             case 5: return [3, 12];
             case 6:
-                e_1_1 = _e.sent();
+                e_1_1 = _f.sent();
                 e_1 = { error: e_1_1 };
                 return [3, 12];
             case 7:
-                _e.trys.push([7, , 10, 11]);
-                if (!(promiseReserveOthers_1_1 && !promiseReserveOthers_1_1.done && (_d = promiseReserveOthers_1["return"]))) return [3, 9];
-                return [4, _d.call(promiseReserveOthers_1)];
+                _f.trys.push([7, , 10, 11]);
+                if (!(promiseReserveOthers_1_1 && !promiseReserveOthers_1_1.done && (_e = promiseReserveOthers_1["return"]))) return [3, 9];
+                return [4, _e.call(promiseReserveOthers_1)];
             case 8:
-                _e.sent();
-                _e.label = 9;
+                _f.sent();
+                _f.label = 9;
             case 9: return [3, 11];
             case 10:
                 if (e_1) throw e_1.error;
                 return [7];
             case 11: return [7];
             case 12:
+                table = [];
+                showTable = false, i = 0;
                 for (_b = 0, reserveOthers_1 = reserveOthers; _b < reserveOthers_1.length; _b++) {
                     reserve = reserveOthers_1[_b];
                     j = 0;
                     for (_c = 0, amountsPayback_1 = amountsPayback; _c < amountsPayback_1.length; _c++) {
                         amountPayback = amountsPayback_1[_c];
                         amountIn = percents[j], amountInWithFee = amountIn.mul(997), numerator = amountInWithFee.mul(reserve.r1), denominator = reserve.r0.mul(1000).add(amountInWithFee), amountOut = numerator.div(denominator), gt = amountOut.gt(amountPayback);
-                        if (gt)
+                        table.push((_d = {
+                                '#': percentsToNumber[j] + "%"
+                            },
+                            _d[token0.symbol + "_BORROW"] = ethers_1.utils.formatUnits(amountIn, token0.decimals),
+                            _d.BLOCKNUMBER = BLOCKNUMBER,
+                            _d.Sell = flashswap_1["default"].getNameExchange(others[i].address),
+                            _d[token1.symbol] = ethers_1.utils.formatUnits(amountOut, token1.decimals),
+                            _d[token1.symbol + "_PAYBACK"] = ethers_1.utils.formatUnits(amountPayback, token1.decimals),
+                            _d['Call?'] = gt,
+                            _d));
+                        if (gt) {
                             COUNTER_SUCCESS++;
+                            showTable = true;
+                        }
                         else
                             COUNTER_FAIL++;
                         j++;
                     }
+                    table.push({});
+                    i++;
                 }
+                console.log("Borrow : " + flashswap_1["default"].getNameExchange(pc.address));
+                console.table(table);
                 COUNTER++;
+                console.log("time = " + (Date.now() - t0));
+                process.exit();
                 return [3, 14];
             case 13:
-                error_1 = _e.sent();
+                error_1 = _f.sent();
                 throw error_1;
             case 14: return [2];
         }
@@ -126,68 +151,83 @@ var logs = function () {
     console.table({ PID: process.pid, Date: new Date().toDateString(), COUNTER: COUNTER, COUNTER_SUCCESS: COUNTER_SUCCESS, COUNTER_FAIL: COUNTER_FAIL });
 };
 var app = function () { return __awaiter(void 0, void 0, void 0, function () {
-    var tokenA, tokenB, tokenC, tokenE, tokens, i, _i, tokens_1, t0, _a, tokens_2, t1, flashswap, error_2, _b, FLASHSWAPS_1, flashswap, error_3;
-    return __generator(this, function (_c) {
-        switch (_c.label) {
+    var tokenA, tokenB, tokenC, tokenE, tokens, i, _i, tokens_1, t0, j, _a, tokens_2, t1, flashswap, error_2, _b, FLASHSWAPS_1, flashswap, _c, error_3;
+    return __generator(this, function (_d) {
+        switch (_d.label) {
             case 0:
                 console.log("App start");
-                _c.label = 1;
+                _d.label = 1;
             case 1:
-                _c.trys.push([1, 11, , 12]);
+                _d.trys.push([1, 16, , 17]);
                 setInterval(logs, 1e3 * 45);
                 tokenA = utils_1.getToken('WMATIC'), tokenB = utils_1.getToken('WBTC'), tokenC = utils_1.getToken('WETH'), tokenE = utils_1.getToken('USDC');
                 tokens = [tokenA, tokenB, tokenC, tokenE];
                 console.log("Create instances");
                 i = 0;
                 _i = 0, tokens_1 = tokens;
-                _c.label = 2;
+                _d.label = 2;
             case 2:
-                if (!(_i < tokens_1.length)) return [3, 10];
+                if (!(_i < tokens_1.length)) return [3, 11];
                 t0 = tokens_1[_i];
+                j = -1;
                 _a = 0, tokens_2 = tokens;
-                _c.label = 3;
+                _d.label = 3;
             case 3:
                 if (!(_a < tokens_2.length)) return [3, 9];
                 t1 = tokens_2[_a];
-                if (t0.address == t1.address)
+                j++;
+                if (i >= j)
                     return [3, 8];
                 flashswap = new flashswap_1["default"](t0, t1);
-                _c.label = 4;
+                _d.label = 4;
             case 4:
-                _c.trys.push([4, 6, , 7]);
+                _d.trys.push([4, 6, , 7]);
                 return [4, flashswap.initialize()];
             case 5:
-                _c.sent();
+                _d.sent();
                 FLASHSWAPS.push(flashswap);
                 return [3, 7];
             case 6:
-                error_2 = _c.sent();
-                i--;
+                error_2 = _d.sent();
+                console.log("error instanciate at " + i + "-" + j);
                 return [3, 7];
             case 7:
-                i++;
-                console.log("\u0167flashswap[" + i + "]");
-                _c.label = 8;
+                console.log("\tflashswap[" + j + "]");
+                _d.label = 8;
             case 8:
                 _a++;
                 return [3, 3];
             case 9:
+                i++;
+                _d.label = 10;
+            case 10:
                 _i++;
                 return [3, 2];
-            case 10:
+            case 11:
                 console.log("--> Created");
                 console.log("Create listeners");
                 i = 0;
-                for (_b = 0, FLASHSWAPS_1 = FLASHSWAPS; _b < FLASHSWAPS_1.length; _b++) {
-                    flashswap = FLASHSWAPS_1[_b];
-                    flashswap.onSync(onSync);
-                }
-                console.log("--> Created");
+                _b = 0, FLASHSWAPS_1 = FLASHSWAPS;
+                _d.label = 12;
+            case 12:
+                if (!(_b < FLASHSWAPS_1.length)) return [3, 15];
+                flashswap = FLASHSWAPS_1[_b];
+                _c = i;
+                return [4, flashswap.onSync(onSync)];
+            case 13:
+                i = _c + _d.sent();
+                _d.label = 14;
+            case 14:
+                _b++;
                 return [3, 12];
-            case 11:
-                error_3 = _c.sent();
+            case 15:
+                console.log("--> Created " + i + " listeners");
+                START_ON_SYNC = true;
+                return [3, 17];
+            case 16:
+                error_3 = _d.sent();
                 throw error_3;
-            case 12: return [2];
+            case 17: return [2];
         }
     });
 }); };
