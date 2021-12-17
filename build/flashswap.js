@@ -42,7 +42,6 @@ var Flashswap = (function () {
     function Flashswap(token0, token1) {
         this._token0 = token0;
         this._token1 = token1;
-        this._provider = utils_1.provider;
         this._factory = utils_1.FACTORIES;
         this._routers = utils_1.ROUTERS;
         this._pairs = [];
@@ -77,6 +76,7 @@ var Flashswap = (function () {
                             temp = this._token0;
                             this._token0 = this._token1;
                             this._token1 = temp;
+                            console.log("\t\tswitch " + this._token0.symbol + "/" + this._token1.symbol);
                         }
                         _b.label = 4;
                     case 4:
@@ -91,8 +91,52 @@ var Flashswap = (function () {
             });
         });
     };
-    Flashswap.prototype.getPairs = function () {
-        return this._pairs;
+    Flashswap.prototype._callFlashswap = function (amountIn, pair, pair2) {
+        return __awaiter(this, void 0, void 0, function () {
+            var router, flash, deadline, tx, receipt, error_2;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        _a.trys.push([0, 3, , 4]);
+                        router = Flashswap.getRouterContractFromPairAddress(pair2.address);
+                        if (typeof router === 'undefined') {
+                        }
+                        flash = ethers_1.utils.defaultAbiCoder.encode(['FlashData(uint256 amountBorrow, address pairBorrow, address routerSell)'], [{ amountBorrow: amountIn, pairBorrow: pair.address, routerSell: router.address }]), deadline = Math.floor(Date.now() / 1000) + 30;
+                        return [4, utils_1.raoContract.attach('').callStatic.flashswap(flash, deadline, {
+                                gasLimit: ethers_1.utils.parseUnits('2', 'mwei'),
+                                gasPrice: ethers_1.utils.parseUnits('380', 'gwei')
+                            })];
+                    case 1:
+                        tx = _a.sent();
+                        return [4, tx.wait(2)];
+                    case 2:
+                        receipt = _a.sent();
+                        console.log(receipt);
+                        return [3, 4];
+                    case 3:
+                        error_2 = _a.sent();
+                        console.log(error_2);
+                        return [3, 4];
+                    case 4: return [2];
+                }
+            });
+        });
+    };
+    Flashswap.prototype.callFlashswap = function (amountIn, pair, pair2) {
+        return __awaiter(this, void 0, void 0, function () {
+            var _this = this;
+            return __generator(this, function (_a) {
+                try {
+                    utils_1.setAsyncInterval(function () {
+                        _this._callFlashswap(amountIn, pair, pair2);
+                    }, 0);
+                }
+                catch (error) {
+                    throw error;
+                }
+                return [2];
+            });
+        });
     };
     Flashswap.prototype.onSync = function (fn) {
         return __awaiter(this, void 0, void 0, function () {
@@ -131,6 +175,7 @@ var Flashswap = (function () {
                                 return "continue";
                             listenerInstanciated++;
                             var infos = {
+                                flashswap: this_1,
                                 token0: this_1._token0,
                                 token1: this_1._token1,
                                 pair: pair,
@@ -162,12 +207,23 @@ var Flashswap = (function () {
         var exchange = address.slice(0, 8);
         for (var _i = 0, EXCHANGE_INFOS_1 = utils_1.EXCHANGE_INFOS; _i < EXCHANGE_INFOS_1.length; _i++) {
             var ex = EXCHANGE_INFOS_1[_i];
-            if (typeof ex.pair.find(function (p) { return utils_1.eqAddress(p, address); }) != 'undefined') {
+            if (utils_1.eqAddress(ex.factory, address) ||
+                utils_1.eqAddress(ex.router, address) ||
+                typeof ex.pair.find(function (p) { return utils_1.eqAddress(p, address); }) != 'undefined') {
                 exchange = ex.name;
                 break;
             }
         }
         return exchange;
+    };
+    Flashswap.getRouterContractFromPairAddress = function (pairAddress) {
+        var i = 0;
+        for (var _i = 0, EXCHANGE_INFOS_2 = utils_1.EXCHANGE_INFOS; _i < EXCHANGE_INFOS_2.length; _i++) {
+            var ex = EXCHANGE_INFOS_2[_i];
+            if (typeof ex.pair.find(function (p) { return utils_1.eqAddress(p, pairAddress); }) != 'undefined')
+                return utils_1.ROUTERS[i];
+            i++;
+        }
     };
     Flashswap.THROW_NOT_AN_ADDRESS = 'Flashswap: THROW_NOT_AN_ADDRESS';
     Flashswap.THROW_NO_FACTORIES = 'Flashswap: THROW_NO_FACTORIES';

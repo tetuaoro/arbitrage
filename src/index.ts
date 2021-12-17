@@ -1,32 +1,33 @@
-import { Contract, BigNumber, Event, utils } from 'ethers'
+import { BigNumber, Event, utils } from 'ethers'
 import dayjs from 'dayjs'
-import 'dayjs/locale/fr'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
+import fr from 'dayjs/locale/fr'
 import Flashswap from './flashswap'
-import { getToken } from './utils'
+import { clearAllAsyncInterval, getToken } from './utils'
+import { onSyncInfos } from './types'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
+dayjs.locale(fr)
 dayjs.tz.setDefault('Pacific/Tahiti')
 
-let FLASHSWAPS: Flashswap[] = []
+const FLASHSWAPS: Flashswap[] = []
 
 let BLOCKNUMBER = 0,
 	COUNTER_SUCCESS = 0,
+	COUNTER_CALL = 0,
 	COUNTER_FAIL = 0,
 	COUNTER = 0,
-	START_ON_SYNC = false
-const onSync = async (infos: any, reserve0: BigNumber, reserve1: BigNumber, event: Event) => {
+	LOCK_ON_SYNC = true
+const onSync = async (infos: onSyncInfos, reserve0: BigNumber, reserve1: BigNumber, event: Event) => {
 	try {
-		if (!START_ON_SYNC) return
+		COUNTER_CALL++
+		if (LOCK_ON_SYNC) return
 		if (event.blockNumber == BLOCKNUMBER) return
-		BLOCKNUMBER = event.blockNumber // lockable
+		BLOCKNUMBER = event.blockNumber // also lockable
 
-		const pc: Contract = infos.pair,
-			others: Contract[] = infos.pairs,
-			token0: Token = infos.token0,
-			token1: Token = infos.token1
+		const { pair: pc, pairs: others, token0, token1, flashswap } = infos
 
 		const onePercent = reserve0.div(100),
 			twoPercent = reserve0.div(50),
@@ -38,28 +39,23 @@ const onSync = async (infos: any, reserve0: BigNumber, reserve1: BigNumber, even
 			percents = [onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent]
 
 		const amountsPayback: BigNumber[] = []
-		for (const amountInPercent of percents) {
-			amountsPayback.push(reserve1.mul(1000).mul(amountInPercent).div(reserve0.mul(997)).add(1))
-		}
+		for (const amountInPercent of percents) amountsPayback.push(reserve1.mul(1000).mul(amountInPercent).div(reserve0.mul(997)).add(1))
 
 		const promiseReserveOthers: Promise<[BigNumber, BigNumber, number]>[] = []
-		for (const pair of others) {
-			promiseReserveOthers.push(pair.getReserves())
-		}
+		for (const pair of others) promiseReserveOthers.push(pair.getReserves())
 
 		const reserveOthers: {
 			r0: BigNumber
 			r1: BigNumber
 		}[] = []
-		for await (const reserves of promiseReserveOthers) {
-			reserveOthers.push({ r0: reserves[0], r1: reserves[1] })
-		}
+		for await (const reserves of promiseReserveOthers) reserveOthers.push({ r0: reserves[0], r1: reserves[1] })
 
 		const table = []
 		let showTable = false,
 			i = 0
 		for (const reserve of reserveOthers) {
-			let j = 0
+			let j = 0,
+				lastSuccessCall: BigNumber
 			for (const amountPayback of amountsPayback) {
 				let amountIn = percents[j],
 					amountInWithFee = amountIn.mul(997),
@@ -67,22 +63,24 @@ const onSync = async (infos: any, reserve0: BigNumber, reserve1: BigNumber, even
 					denominator = reserve.r0.mul(1000).add(amountInWithFee),
 					amountOut = numerator.div(denominator),
 					gt = amountOut.gt(amountPayback)
-				table.push({
-					'#': `${percentsToNumber[j]}%`,
-					[`${token0.symbol}_BORROW`]: utils.formatUnits(amountIn, token0.decimals),
-					BLOCKNUMBER,
-					Sell: Flashswap.getNameExchange(others[i].address),
-					[token1.symbol]: utils.formatUnits(amountOut, token1.decimals),
-					[`${token1.symbol}_PAYBACK`]: utils.formatUnits(amountPayback, token1.decimals),
-					'Call?': gt,
-				})
 
 				if (gt) {
+					lastSuccessCall = amountIn
 					COUNTER_SUCCESS++
+					table.push({
+						'#': `${percentsToNumber[j]}%`,
+						[`${token0.symbol}_BORROW`]: utils.formatUnits(amountIn, token0.decimals),
+						BLOCKNUMBER,
+						Sell: Flashswap.getNameExchange(others[i].address),
+						[token1.symbol]: utils.formatUnits(amountOut, token1.decimals),
+						[`${token1.symbol}_PAYBACK`]: utils.formatUnits(amountPayback, token1.decimals),
+						'Call?': gt,
+					})
 					showTable = true
 				} else COUNTER_FAIL++
 				j++
 			}
+			if (typeof lastSuccessCall != 'undefined') flashswap.callFlashswap(lastSuccessCall, pc, others[i])
 			table.push({})
 			i++
 		}
@@ -97,7 +95,7 @@ const onSync = async (infos: any, reserve0: BigNumber, reserve1: BigNumber, even
 }
 
 const logs = () => {
-	console.table({ PID: process.pid, Date: dayjs().format('D/M/YYYY H:m:s'), COUNTER, COUNTER_SUCCESS, COUNTER_FAIL })
+	console.table({ PID: process.pid, Date: dayjs().format('D/M/YYYY H:m:s'), COUNTER, COUNTER_CALL, COUNTER_SUCCESS, COUNTER_FAIL })
 }
 
 const app = async () => {
@@ -120,15 +118,13 @@ const app = async () => {
 				if (i >= j) continue
 				let flashswap = new Flashswap(t0, t1)
 				try {
+					console.log(`\tflashswap[${j}] ${t0.symbol}/${t1.symbol}`)
 					await flashswap.initialize()
 					FLASHSWAPS.push(flashswap)
 				} catch (error) {
 					console.log(`error instanciate at ${i}-${j}`)
-					console.log(error)
-					process.exit()
-					
+					throw error
 				}
-				console.log(`\tflashswap[${j}]`)
 			}
 			i++
 		}
@@ -139,7 +135,7 @@ const app = async () => {
 			i += await flashswap.onSync(onSync)
 		}
 		console.log(`--> Created ${i} listeners`)
-		START_ON_SYNC = true
+		LOCK_ON_SYNC = false
 	} catch (error) {
 		throw error
 	}
@@ -156,12 +152,13 @@ const app = async () => {
 	}
 })()
 
-let lockClose = false
+let LOCK_CLOSE = false
 const close = () => {
-	if (lockClose) return
-	lockClose = true
-	console.log(`\nexit///\n`)
+	if (LOCK_CLOSE) return
+	LOCK_CLOSE = true
+	console.log(`\nexit///`)
 	logs()
+	clearAllAsyncInterval()
 	Flashswap.removeAllListeners()
 	process.exit()
 }

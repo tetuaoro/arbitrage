@@ -4,7 +4,9 @@ import { abi as FACTORY_ABI } from './abi/IUniswapV2Factory.json'
 import { abi as ROUTER_ABI } from './abi/IUniswapV2Router01.json'
 import { abi as PAIR_ABI } from './abi/IUniswapV2Pair.json'
 import { abi as TOKEN_ABI } from './abi/IERC20.json'
+import { abi as RAO_ABI } from './abi/RaoArbitrage.json'
 import TOKENS from './tokens.json'
+import { Token, Address, Exchanges } from './types'
 
 /* CONFIGURATION */
 config()
@@ -24,7 +26,8 @@ export const NETWORK = 137,
 	factoryContract = new Contract(constants.AddressZero, FACTORY_ABI, provider),
 	routerContract = new Contract(constants.AddressZero, ROUTER_ABI, provider),
 	pairContract = new Contract(constants.AddressZero, PAIR_ABI, provider),
-	tokenContract = new Contract(constants.AddressZero, TOKEN_ABI, provider)
+	tokenContract = new Contract(constants.AddressZero, TOKEN_ABI, provider),
+	raoContract = new Contract(constants.AddressZero, RAO_ABI, provider)
 
 export const getToken = (symbol: string): Token => {
 	let token = TOKENS.find((t) => t.symbol == symbol)
@@ -39,12 +42,7 @@ export const required = (condition: boolean, message?: string) => {
 	if (!condition) throw new Error(message || 'Required: Une erreur est survenue !')
 }
 
-export const EXCHANGE_INFOS: {
-	name: string
-	factory: Address
-	router: Address
-	pair: Address[]
-}[] = [
+export const EXCHANGE_INFOS: Exchanges[] = [
 	{
 		name: 'Sushiswap',
 		factory: '0xc35DADB65012eC5796536bD9864eD8773aBc74C4',
@@ -73,3 +71,34 @@ export const EXCHANGE_INFOS: {
 
 export const FACTORIES = EXCHANGE_INFOS.map((i) => factoryContract.attach(i.factory))
 export const ROUTERS = EXCHANGE_INFOS.map((i) => routerContract.attach(i.router))
+
+const asyncIntervals: boolean[] = []
+
+const runAsyncInterval = async (cb: CallableFunction, interval: number, intervalIndex: number) => {
+	await cb()
+	if (asyncIntervals[intervalIndex]) {
+		setTimeout(() => runAsyncInterval(cb, interval, intervalIndex), interval)
+	}
+}
+
+export const setAsyncInterval = (cb: CallableFunction, interval: number) => {
+	if (cb && typeof cb === 'function') {
+		const intervalIndex = asyncIntervals.length
+		asyncIntervals.push(true)
+		runAsyncInterval(cb, interval, intervalIndex)
+		return intervalIndex
+	} else {
+		throw new Error('Callback must be a function')
+	}
+}
+
+export const clearAsyncInterval = (intervalIndex: number) => {
+	if (asyncIntervals[intervalIndex]) {
+		asyncIntervals[intervalIndex] = false
+	}
+}
+export const clearAllAsyncInterval = () => {
+	for (let ai of asyncIntervals) {
+		ai = false
+	}
+}

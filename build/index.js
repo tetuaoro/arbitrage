@@ -48,30 +48,32 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 exports.__esModule = true;
 var ethers_1 = require("ethers");
 var dayjs_1 = __importDefault(require("dayjs"));
-require("dayjs/locale/fr");
 var utc_1 = __importDefault(require("dayjs/plugin/utc"));
 var timezone_1 = __importDefault(require("dayjs/plugin/timezone"));
+var fr_1 = __importDefault(require("dayjs/locale/fr"));
 var flashswap_1 = __importDefault(require("./flashswap"));
 var utils_1 = require("./utils");
 dayjs_1["default"].extend(utc_1["default"]);
 dayjs_1["default"].extend(timezone_1["default"]);
+dayjs_1["default"].locale(fr_1["default"]);
 dayjs_1["default"].tz.setDefault('Pacific/Tahiti');
 var FLASHSWAPS = [];
-var BLOCKNUMBER = 0, COUNTER_SUCCESS = 0, COUNTER_FAIL = 0, COUNTER = 0, START_ON_SYNC = false;
+var BLOCKNUMBER = 0, COUNTER_SUCCESS = 0, COUNTER_CALL = 0, COUNTER_FAIL = 0, COUNTER = 0, LOCK_ON_SYNC = true;
 var onSync = function (infos, reserve0, reserve1, event) { return __awaiter(void 0, void 0, void 0, function () {
-    var pc, others, token0, token1, onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent, percentsToNumber, percents, amountsPayback, _i, percents_1, amountInPercent, promiseReserveOthers, _a, others_1, pair, reserveOthers, promiseReserveOthers_1, promiseReserveOthers_1_1, reserves, e_1_1, table, showTable, i, _b, reserveOthers_1, reserve, j, _c, amountsPayback_1, amountPayback, amountIn, amountInWithFee, numerator, denominator, amountOut, gt, error_1;
+    var pc, others, token0, token1, flashswap, onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent, percentsToNumber, percents, amountsPayback, _i, percents_1, amountInPercent, promiseReserveOthers, _a, others_1, pair, reserveOthers, promiseReserveOthers_1, promiseReserveOthers_1_1, reserves, e_1_1, table, showTable, i, _b, reserveOthers_1, reserve, j, lastSuccessCall, _c, amountsPayback_1, amountPayback, amountIn, amountInWithFee, numerator, denominator, amountOut, gt, error_1;
     var _d;
     var e_1, _e;
     return __generator(this, function (_f) {
         switch (_f.label) {
             case 0:
                 _f.trys.push([0, 13, , 14]);
-                if (!START_ON_SYNC)
+                COUNTER_CALL++;
+                if (LOCK_ON_SYNC)
                     return [2];
                 if (event.blockNumber == BLOCKNUMBER)
                     return [2];
                 BLOCKNUMBER = event.blockNumber;
-                pc = infos.pair, others = infos.pairs, token0 = infos.token0, token1 = infos.token1;
+                pc = infos.pair, others = infos.pairs, token0 = infos.token0, token1 = infos.token1, flashswap = infos.flashswap;
                 onePercent = reserve0.div(100), twoPercent = reserve0.div(50), fivePercent = reserve0.div(20), tenPercent = reserve0.div(10), twentyPercent = reserve0.div(5), fiftyPercent = reserve0.div(2), percentsToNumber = [1, 2, 5, 10, 20, 50], percents = [onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent];
                 amountsPayback = [];
                 for (_i = 0, percents_1 = percents; _i < percents_1.length; _i++) {
@@ -118,28 +120,31 @@ var onSync = function (infos, reserve0, reserve1, event) { return __awaiter(void
                 showTable = false, i = 0;
                 for (_b = 0, reserveOthers_1 = reserveOthers; _b < reserveOthers_1.length; _b++) {
                     reserve = reserveOthers_1[_b];
-                    j = 0;
+                    j = 0, lastSuccessCall = void 0;
                     for (_c = 0, amountsPayback_1 = amountsPayback; _c < amountsPayback_1.length; _c++) {
                         amountPayback = amountsPayback_1[_c];
                         amountIn = percents[j], amountInWithFee = amountIn.mul(997), numerator = amountInWithFee.mul(reserve.r1), denominator = reserve.r0.mul(1000).add(amountInWithFee), amountOut = numerator.div(denominator), gt = amountOut.gt(amountPayback);
-                        table.push((_d = {
-                                '#': percentsToNumber[j] + "%"
-                            },
-                            _d[token0.symbol + "_BORROW"] = ethers_1.utils.formatUnits(amountIn, token0.decimals),
-                            _d.BLOCKNUMBER = BLOCKNUMBER,
-                            _d.Sell = flashswap_1["default"].getNameExchange(others[i].address),
-                            _d[token1.symbol] = ethers_1.utils.formatUnits(amountOut, token1.decimals),
-                            _d[token1.symbol + "_PAYBACK"] = ethers_1.utils.formatUnits(amountPayback, token1.decimals),
-                            _d['Call?'] = gt,
-                            _d));
                         if (gt) {
+                            lastSuccessCall = amountIn;
                             COUNTER_SUCCESS++;
+                            table.push((_d = {
+                                    '#': percentsToNumber[j] + "%"
+                                },
+                                _d[token0.symbol + "_BORROW"] = ethers_1.utils.formatUnits(amountIn, token0.decimals),
+                                _d.BLOCKNUMBER = BLOCKNUMBER,
+                                _d.Sell = flashswap_1["default"].getNameExchange(others[i].address),
+                                _d[token1.symbol] = ethers_1.utils.formatUnits(amountOut, token1.decimals),
+                                _d[token1.symbol + "_PAYBACK"] = ethers_1.utils.formatUnits(amountPayback, token1.decimals),
+                                _d['Call?'] = gt,
+                                _d));
                             showTable = true;
                         }
                         else
                             COUNTER_FAIL++;
                         j++;
                     }
+                    if (typeof lastSuccessCall != 'undefined')
+                        flashswap.callFlashswap(lastSuccessCall, pc, others[i]);
                     table.push({});
                     i++;
                 }
@@ -157,7 +162,7 @@ var onSync = function (infos, reserve0, reserve1, event) { return __awaiter(void
     });
 }); };
 var logs = function () {
-    console.table({ PID: process.pid, Date: dayjs_1["default"]().format('D/M/YYYY H:m:s'), COUNTER: COUNTER, COUNTER_SUCCESS: COUNTER_SUCCESS, COUNTER_FAIL: COUNTER_FAIL });
+    console.table({ PID: process.pid, Date: dayjs_1["default"]().format('D/M/YYYY H:m:s'), COUNTER: COUNTER, COUNTER_CALL: COUNTER_CALL, COUNTER_SUCCESS: COUNTER_SUCCESS, COUNTER_FAIL: COUNTER_FAIL });
 };
 var app = function () { return __awaiter(void 0, void 0, void 0, function () {
     var tokenA, tokenB, tokenC, tokenE, tokens, i, _i, tokens_1, t0, j, _a, tokens_2, t1, flashswap, error_2, _b, FLASHSWAPS_1, flashswap, _c, error_3;
@@ -167,7 +172,7 @@ var app = function () { return __awaiter(void 0, void 0, void 0, function () {
                 console.log("App start " + dayjs_1["default"]().format('D/M/YYYY H:m:s'));
                 _d.label = 1;
             case 1:
-                _d.trys.push([1, 16, , 17]);
+                _d.trys.push([1, 15, , 16]);
                 setInterval(logs, 1e3 * 45);
                 tokenA = utils_1.getToken('WMATIC'), tokenB = utils_1.getToken('WBTC'), tokenC = utils_1.getToken('WETH'), tokenE = utils_1.getToken('USDC');
                 tokens = [tokenA, tokenB, tokenC, tokenE];
@@ -176,21 +181,22 @@ var app = function () { return __awaiter(void 0, void 0, void 0, function () {
                 _i = 0, tokens_1 = tokens;
                 _d.label = 2;
             case 2:
-                if (!(_i < tokens_1.length)) return [3, 11];
+                if (!(_i < tokens_1.length)) return [3, 10];
                 t0 = tokens_1[_i];
                 j = -1;
                 _a = 0, tokens_2 = tokens;
                 _d.label = 3;
             case 3:
-                if (!(_a < tokens_2.length)) return [3, 9];
+                if (!(_a < tokens_2.length)) return [3, 8];
                 t1 = tokens_2[_a];
                 j++;
                 if (i >= j)
-                    return [3, 8];
+                    return [3, 7];
                 flashswap = new flashswap_1["default"](t0, t1);
                 _d.label = 4;
             case 4:
                 _d.trys.push([4, 6, , 7]);
+                console.log("\tflashswap[" + j + "] " + t0.symbol + "/" + t1.symbol);
                 return [4, flashswap.initialize()];
             case 5:
                 _d.sent();
@@ -199,46 +205,42 @@ var app = function () { return __awaiter(void 0, void 0, void 0, function () {
             case 6:
                 error_2 = _d.sent();
                 console.log("error instanciate at " + i + "-" + j);
-                console.log(error_2);
-                process.exit();
-                return [3, 7];
+                throw error_2;
             case 7:
-                console.log("\tflashswap[" + j + "]");
-                _d.label = 8;
-            case 8:
                 _a++;
                 return [3, 3];
-            case 9:
+            case 8:
                 i++;
-                _d.label = 10;
-            case 10:
+                _d.label = 9;
+            case 9:
                 _i++;
                 return [3, 2];
-            case 11:
+            case 10:
                 console.log("--> Created");
                 console.log("Create listeners");
                 i = 0;
                 _b = 0, FLASHSWAPS_1 = FLASHSWAPS;
-                _d.label = 12;
-            case 12:
-                if (!(_b < FLASHSWAPS_1.length)) return [3, 15];
+                _d.label = 11;
+            case 11:
+                if (!(_b < FLASHSWAPS_1.length)) return [3, 14];
                 flashswap = FLASHSWAPS_1[_b];
                 _c = i;
                 return [4, flashswap.onSync(onSync)];
-            case 13:
+            case 12:
                 i = _c + _d.sent();
-                _d.label = 14;
-            case 14:
+                _d.label = 13;
+            case 13:
                 _b++;
-                return [3, 12];
-            case 15:
+                return [3, 11];
+            case 14:
                 console.log("--> Created " + i + " listeners");
-                START_ON_SYNC = true;
-                return [3, 17];
-            case 16:
+                process.exit();
+                LOCK_ON_SYNC = false;
+                return [3, 16];
+            case 15:
                 error_3 = _d.sent();
                 throw error_3;
-            case 17: return [2];
+            case 16: return [2];
         }
     });
 }); };
@@ -265,13 +267,14 @@ var app = function () { return __awaiter(void 0, void 0, void 0, function () {
         }
     });
 }); })();
-var lockClose = false;
+var LOCK_CLOSE = false;
 var close = function () {
-    if (lockClose)
+    if (LOCK_CLOSE)
         return;
-    lockClose = true;
-    console.log("\nexit///\n");
+    LOCK_CLOSE = true;
+    console.log("\nexit///");
     logs();
+    utils_1.clearAllAsyncInterval();
     flashswap_1["default"].removeAllListeners();
     process.exit();
 };
