@@ -27,7 +27,7 @@ export const NETWORK = 137,
 	routerContract = new Contract(constants.AddressZero, ROUTER_ABI, provider),
 	pairContract = new Contract(constants.AddressZero, PAIR_ABI, provider),
 	tokenContract = new Contract(constants.AddressZero, TOKEN_ABI, provider),
-	raoContract = new Contract(constants.AddressZero, RAO_ABI, provider)
+	raoContract = new Contract('0x4c2fC697B1C0d571E04C6F2750c672BE0CB66407', RAO_ABI, provider)
 
 export const getToken = (symbol: string): Token => {
 	let token = TOKENS.find((t) => t.symbol == symbol)

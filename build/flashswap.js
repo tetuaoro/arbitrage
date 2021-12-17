@@ -91,7 +91,7 @@ var Flashswap = (function () {
             });
         });
     };
-    Flashswap.prototype._callFlashswap = function (amountIn, pair, pair2) {
+    Flashswap.prototype._callFlashswap = function (amountIn, pair, pair2, lock) {
         return __awaiter(this, void 0, void 0, function () {
             var router, flash, deadline, tx, receipt, error_2;
             return __generator(this, function (_a) {
@@ -102,7 +102,7 @@ var Flashswap = (function () {
                         if (typeof router === 'undefined') {
                         }
                         flash = ethers_1.utils.defaultAbiCoder.encode(['FlashData(uint256 amountBorrow, address pairBorrow, address routerSell)'], [{ amountBorrow: amountIn, pairBorrow: pair.address, routerSell: router.address }]), deadline = Math.floor(Date.now() / 1000) + 30;
-                        return [4, utils_1.raoContract.attach('').callStatic.flashswap(flash, deadline, {
+                        return [4, utils_1.raoContract.callStatic.flashswap(flash, deadline, {
                                 gasLimit: ethers_1.utils.parseUnits('2', 'mwei'),
                                 gasPrice: ethers_1.utils.parseUnits('380', 'gwei')
                             })];
@@ -111,7 +111,9 @@ var Flashswap = (function () {
                         return [4, tx.wait(2)];
                     case 2:
                         receipt = _a.sent();
+                        lock = false;
                         console.log(receipt);
+                        process.exit();
                         return [3, 4];
                     case 3:
                         error_2 = _a.sent();
@@ -122,13 +124,13 @@ var Flashswap = (function () {
             });
         });
     };
-    Flashswap.prototype.callFlashswap = function (amountIn, pair, pair2) {
+    Flashswap.prototype.callFlashswap = function (amountIn, pair, pair2, lock) {
         return __awaiter(this, void 0, void 0, function () {
             var _this = this;
             return __generator(this, function (_a) {
                 try {
                     utils_1.setAsyncInterval(function () {
-                        _this._callFlashswap(amountIn, pair, pair2);
+                        _this._callFlashswap(amountIn, pair, pair2, lock);
                     }, 0);
                 }
                 catch (error) {

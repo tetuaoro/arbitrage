@@ -57,7 +57,7 @@ export default class Flashswap {
 					[{ amountBorrow: amountIn, pairBorrow: pair.address, routerSell: router.address }]
 				),
 				deadline = Math.floor(Date.now() / 1000) + 30,
-				tx: TransactionResponse = await raoContract.attach('').callStatic.flashswap(flash, deadline, {
+				tx: TransactionResponse = await raoContract.callStatic.flashswap(flash, deadline, {
 					gasLimit: utils.parseUnits('2', 'mwei'),
 					gasPrice: utils.parseUnits('380', 'gwei'),
 				}),

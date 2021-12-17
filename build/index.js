@@ -143,8 +143,10 @@ var onSync = function (infos, reserve0, reserve1, event) { return __awaiter(void
                             COUNTER_FAIL++;
                         j++;
                     }
-                    if (typeof lastSuccessCall != 'undefined')
-                        flashswap.callFlashswap(lastSuccessCall, pc, others[i]);
+                    if (typeof lastSuccessCall != 'undefined') {
+                        LOCK_ON_SYNC = true;
+                        flashswap.callFlashswap(lastSuccessCall, pc, others[i], LOCK_ON_SYNC);
+                    }
                     table.push({});
                     i++;
                 }
@@ -234,7 +236,6 @@ var app = function () { return __awaiter(void 0, void 0, void 0, function () {
                 return [3, 11];
             case 14:
                 console.log("--> Created " + i + " listeners");
-                process.exit();
                 LOCK_ON_SYNC = false;
                 return [3, 16];
             case 15:
