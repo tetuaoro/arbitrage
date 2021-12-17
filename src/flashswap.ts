@@ -46,7 +46,7 @@ export default class Flashswap {
 		}
 	}
 
-	private async _callFlashswap(amountIn: BigNumber, pair: Contract, pair2: Contract) {
+	private async _callFlashswap(amountIn: BigNumber, pair: Contract, pair2: Contract, lock: boolean) {
 		try {
 			let router = Flashswap.getRouterContractFromPairAddress(pair2.address)
 			if (typeof router === 'undefined') {
@@ -62,16 +62,18 @@ export default class Flashswap {
 					gasPrice: utils.parseUnits('380', 'gwei'),
 				}),
 				receipt = await tx.wait(2)
+			lock = false
 			console.log(receipt)
+			process.exit()
 		} catch (error) {
 			console.log(error)
 		}
 	}
 
-	async callFlashswap(amountIn: BigNumber, pair: Contract, pair2: Contract) {
+	async callFlashswap(amountIn: BigNumber, pair: Contract, pair2: Contract, lock: boolean) {
 		try {
 			setAsyncInterval(() => {
-				this._callFlashswap(amountIn, pair, pair2)
+				this._callFlashswap(amountIn, pair, pair2, lock)
 			}, 0)
 		} catch (error) {
 			throw error

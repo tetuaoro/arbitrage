@@ -80,7 +80,10 @@ const onSync = async (infos: onSyncInfos, reserve0: BigNumber, reserve1: BigNumb
 				} else COUNTER_FAIL++
 				j++
 			}
-			if (typeof lastSuccessCall != 'undefined') flashswap.callFlashswap(lastSuccessCall, pc, others[i])
+			if (typeof lastSuccessCall != 'undefined') {
+				LOCK_ON_SYNC = true
+				flashswap.callFlashswap(lastSuccessCall, pc, others[i], LOCK_ON_SYNC)
+			}
 			table.push({})
 			i++
 		}
