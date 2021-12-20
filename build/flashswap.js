@@ -38,15 +38,14 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 exports.__esModule = true;
 var ethers_1 = require("ethers");
 var utils_1 = require("./utils");
-var Flashswap = (function () {
-    function Flashswap(token0, token1) {
+var FlashswapV2 = (function () {
+    function FlashswapV2(token0, token1) {
         this._token0 = token0;
         this._token1 = token1;
         this._factory = utils_1.FACTORIES;
-        this._routers = utils_1.ROUTERS;
         this._pairs = [];
     }
-    Flashswap.prototype.initialize = function () {
+    FlashswapV2.prototype.initialize = function () {
         return __awaiter(this, void 0, void 0, function () {
             var i, switchTokens, _i, _a, fc, pair, token0, temp, error_1;
             return __generator(this, function (_b) {
@@ -62,7 +61,7 @@ var Flashswap = (function () {
                         return [4, fc.getPair(this._token0.address, this._token1.address)];
                     case 2:
                         pair = _b.sent();
-                        utils_1.required(!utils_1.eqAddress(ethers_1.constants.AddressZero, pair), Flashswap.THROW_NOT_AN_ADDRESS + " #AddressZero");
+                        utils_1.required(!utils_1.eqAddress(ethers_1.constants.AddressZero, pair), FlashswapV2.THROW_NOT_AN_ADDRESS + " #AddressZero");
                         this._pairs.push(utils_1.pairContract.attach(pair));
                         utils_1.EXCHANGE_INFOS[i].pair.push(pair);
                         i++;
@@ -91,134 +90,60 @@ var Flashswap = (function () {
             });
         });
     };
-    Flashswap.prototype._callFlashswap = function (amountIn, pair, pair2, lock) {
+    FlashswapV2.prototype.onSync = function (fn) {
         return __awaiter(this, void 0, void 0, function () {
-            var router, flash, deadline, tx, receipt, error_2;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
+            var kLasts, _i, _a, pair, kLast, extras;
+            return __generator(this, function (_b) {
+                switch (_b.label) {
                     case 0:
-                        _a.trys.push([0, 3, , 4]);
-                        router = Flashswap.getRouterContractFromPairAddress(pair2.address);
-                        if (typeof router === 'undefined') {
-                        }
-                        flash = ethers_1.utils.defaultAbiCoder.encode(['FlashData(uint256 amountBorrow, address pairBorrow, address routerSell)'], [{ amountBorrow: amountIn, pairBorrow: pair.address, routerSell: router.address }]), deadline = Math.floor(Date.now() / 1000) + 30;
-                        return [4, utils_1.raoContract.callStatic.flashswap(flash, deadline, {
-                                gasLimit: ethers_1.utils.parseUnits('2', 'mwei'),
-                                gasPrice: ethers_1.utils.parseUnits('380', 'gwei')
-                            })];
-                    case 1:
-                        tx = _a.sent();
-                        return [4, tx.wait(2)];
-                    case 2:
-                        receipt = _a.sent();
-                        lock = false;
-                        console.log(receipt);
-                        process.exit();
-                        return [3, 4];
-                    case 3:
-                        error_2 = _a.sent();
-                        console.log(error_2);
-                        return [3, 4];
-                    case 4: return [2];
-                }
-            });
-        });
-    };
-    Flashswap.prototype.callFlashswap = function (amountIn, pair, pair2, lock) {
-        return __awaiter(this, void 0, void 0, function () {
-            var _this = this;
-            return __generator(this, function (_a) {
-                try {
-                    utils_1.setAsyncInterval(function () {
-                        _this._callFlashswap(amountIn, pair, pair2, lock);
-                    }, 0);
-                }
-                catch (error) {
-                    throw error;
-                }
-                return [2];
-            });
-        });
-    };
-    Flashswap.prototype.onSync = function (fn) {
-        return __awaiter(this, void 0, void 0, function () {
-            var kLasts, _pairs, _i, _a, pair, kLast, myAvg, i, _b, kLasts_1, kLast, listenerInstanciated, _loop_1, this_1, _c, _pairs_1, pair;
-            return __generator(this, function (_d) {
-                switch (_d.label) {
-                    case 0:
-                        kLasts = [], _pairs = [];
+                        kLasts = [];
                         _i = 0, _a = this._pairs;
-                        _d.label = 1;
+                        _b.label = 1;
                     case 1:
                         if (!(_i < _a.length)) return [3, 4];
                         pair = _a[_i];
                         return [4, pair.kLast()];
                     case 2:
-                        kLast = _d.sent();
-                        kLasts.push(kLast);
-                        _d.label = 3;
+                        kLast = _b.sent();
+                        kLasts.push({ k: kLast, pair: pair });
+                        _b.label = 3;
                     case 3:
                         _i++;
                         return [3, 1];
                     case 4:
-                        myAvg = kLasts
-                            .reduce(function (a, b) { return a.add(b); })
-                            .div(kLasts.length)
-                            .div(1000), i = 0;
-                        for (_b = 0, kLasts_1 = kLasts; _b < kLasts_1.length; _b++) {
-                            kLast = kLasts_1[_b];
-                            if (kLast.gt(myAvg))
-                                _pairs.push(this._pairs[i]);
-                            i++;
-                        }
-                        listenerInstanciated = 0;
-                        _loop_1 = function (pair) {
-                            if (_pairs.length == 1)
-                                return "continue";
-                            listenerInstanciated++;
-                            var infos = {
-                                flashswap: this_1,
-                                token0: this_1._token0,
-                                token1: this_1._token1,
-                                pair: pair,
-                                pairs: _pairs.filter(function (pc) { return !utils_1.eqAddress(pc.address, pair.address); })
-                            };
-                            pair.on('Sync', function (reserve0, reserve1, event) {
-                                try {
-                                    fn(infos, reserve0, reserve1, event);
-                                }
-                                catch (error) {
-                                    throw error;
-                                }
-                            });
+                        kLasts.sort(function (a, b) { return (a.k.gt(b.k) ? -1 : a.k.eq(b.k) ? 0 : 1); });
+                        extras = {
+                            token0: this._token0,
+                            token1: this._token1,
+                            pair: kLasts[0].pair,
+                            pairs: this._pairs.filter(function (pc) { return !utils_1.eqAddress(pc.address, kLasts[0].pair.address); })
                         };
-                        this_1 = this;
-                        for (_c = 0, _pairs_1 = _pairs; _c < _pairs_1.length; _c++) {
-                            pair = _pairs_1[_c];
-                            _loop_1(pair);
-                        }
-                        return [2, listenerInstanciated];
+                        kLasts[0].pair.on('Sync', function (reserve0, reserve1, event) {
+                            try {
+                                fn(extras, reserve0, reserve1, event);
+                            }
+                            catch (error) {
+                                throw error;
+                            }
+                        });
+                        return [2, 1];
                 }
             });
         });
     };
-    Flashswap.removeAllListeners = function () {
+    FlashswapV2.removeAllListeners = function () {
         utils_1.provider.removeAllListeners();
     };
-    Flashswap.getNameExchange = function (address) {
-        var exchange = address.slice(0, 8);
+    FlashswapV2.getNameExchange = function (address) {
         for (var _i = 0, EXCHANGE_INFOS_1 = utils_1.EXCHANGE_INFOS; _i < EXCHANGE_INFOS_1.length; _i++) {
             var ex = EXCHANGE_INFOS_1[_i];
             if (utils_1.eqAddress(ex.factory, address) ||
                 utils_1.eqAddress(ex.router, address) ||
-                typeof ex.pair.find(function (p) { return utils_1.eqAddress(p, address); }) != 'undefined') {
-                exchange = ex.name;
-                break;
-            }
+                typeof ex.pair.find(function (p) { return utils_1.eqAddress(p, address); }) != 'undefined')
+                return ex.name;
         }
-        return exchange;
     };
-    Flashswap.getRouterContractFromPairAddress = function (pairAddress) {
+    FlashswapV2.getRouterContractFromPairAddress = function (pairAddress) {
         var i = 0;
         for (var _i = 0, EXCHANGE_INFOS_2 = utils_1.EXCHANGE_INFOS; _i < EXCHANGE_INFOS_2.length; _i++) {
             var ex = EXCHANGE_INFOS_2[_i];
@@ -227,8 +152,8 @@ var Flashswap = (function () {
             i++;
         }
     };
-    Flashswap.THROW_NOT_AN_ADDRESS = 'Flashswap: THROW_NOT_AN_ADDRESS';
-    Flashswap.THROW_NO_FACTORIES = 'Flashswap: THROW_NO_FACTORIES';
-    return Flashswap;
+    FlashswapV2.THROW_NOT_AN_ADDRESS = 'Flashswap: THROW_NOT_AN_ADDRESS';
+    FlashswapV2.THROW_NO_FACTORIES = 'Flashswap: THROW_NO_FACTORIES';
+    return FlashswapV2;
 }());
-exports["default"] = Flashswap;
+exports["default"] = FlashswapV2;

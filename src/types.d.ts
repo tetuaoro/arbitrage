@@ -1,5 +1,4 @@
 import { Contract } from 'ethers'
-import Flashswap from './flashswap'
 
 declare type UrlString = string
 declare type Address = string
@@ -11,7 +10,6 @@ declare type Token = {
 	network: number
 }
 declare type onSyncInfos = {
-	flashswap: Flashswap
 	token0: Token
 	token1: Token
 	pair: Contract

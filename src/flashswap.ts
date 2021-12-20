@@ -1,13 +1,12 @@
-import { TransactionReceipt, TransactionResponse } from '@ethersproject/abstract-provider'
+import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { Contract, BigNumber, constants, Event, utils } from 'ethers'
 import { Token, Address, onSyncInfos } from './types'
 import { required, FACTORIES, ROUTERS, pairContract, raoContract, provider, eqAddress, EXCHANGE_INFOS, setAsyncInterval } from './utils'
 
-export default class Flashswap {
+export default class FlashswapV2 {
 	private _token0: Token
 	private _token1: Token
 	private _factory: Contract[]
-	private _routers: Contract[]
 	private _pairs: Contract[]
 
 	public static THROW_NOT_AN_ADDRESS = 'Flashswap: THROW_NOT_AN_ADDRESS'
@@ -17,17 +16,19 @@ export default class Flashswap {
 		this._token0 = token0
 		this._token1 = token1
 		this._factory = FACTORIES
-		this._routers = ROUTERS
 		this._pairs = []
 	}
 
+	/**
+	 * Get pairs on alls v2 factories (AMM)
+	 */
 	async initialize() {
 		try {
 			let i = 0,
 				switchTokens = false
 			for (const fc of this._factory) {
 				let pair: Address = await fc.getPair(this._token0.address, this._token1.address)
-				required(!eqAddress(constants.AddressZero, pair), `${Flashswap.THROW_NOT_AN_ADDRESS} #AddressZero`)
+				required(!eqAddress(constants.AddressZero, pair), `${FlashswapV2.THROW_NOT_AN_ADDRESS} #AddressZero`)
 				this._pairs.push(pairContract.attach(pair))
 				EXCHANGE_INFOS[i].pair.push(pair)
 				i++
@@ -46,76 +47,32 @@ export default class Flashswap {
 		}
 	}
 
-	private async _callFlashswap(amountIn: BigNumber, pair: Contract, pair2: Contract, lock: boolean) {
-		try {
-			let router = Flashswap.getRouterContractFromPairAddress(pair2.address)
-			if (typeof router === 'undefined') {
-			}
-
-			let flash = utils.defaultAbiCoder.encode(
-					['FlashData(uint256 amountBorrow, address pairBorrow, address routerSell)'],
-					[{ amountBorrow: amountIn, pairBorrow: pair.address, routerSell: router.address }]
-				),
-				deadline = Math.floor(Date.now() / 1000) + 30,
-				tx: TransactionResponse = await raoContract.callStatic.flashswap(flash, deadline, {
-					gasLimit: utils.parseUnits('2', 'mwei'),
-					gasPrice: utils.parseUnits('380', 'gwei'),
-				}),
-				receipt = await tx.wait(2)
-			lock = false
-			console.log(receipt)
-			process.exit()
-		} catch (error) {
-			console.log(error)
-		}
-	}
-
-	async callFlashswap(amountIn: BigNumber, pair: Contract, pair2: Contract, lock: boolean) {
-		try {
-			setAsyncInterval(() => {
-				this._callFlashswap(amountIn, pair, pair2, lock)
-			}, 0)
-		} catch (error) {
-			throw error
-		}
-	}
-
 	async onSync(fn: CallableFunction): Promise<number> {
-		let kLasts: BigNumber[] = [],
-			_pairs: Contract[] = []
+		let kLasts: {
+			k: BigNumber
+			pair: Contract
+		}[] = []
 		for (const pair of this._pairs) {
 			let kLast: BigNumber = await pair.kLast()
-			kLasts.push(kLast)
+			kLasts.push({ k: kLast, pair })
 		}
-		let myAvg = kLasts
-				.reduce((a, b) => a.add(b))
-				.div(kLasts.length)
-				.div(1000),
-			i = 0
-		for (const kLast of kLasts) {
-			if (kLast.gt(myAvg)) _pairs.push(this._pairs[i])
-			i++
+
+		kLasts.sort((a, b) => (a.k.gt(b.k) ? -1 : a.k.eq(b.k) ? 0 : 1))
+		let extras: onSyncInfos = {
+			token0: this._token0,
+			token1: this._token1,
+			pair: kLasts[0].pair,
+			pairs: this._pairs.filter((pc) => !eqAddress(pc.address, kLasts[0].pair.address)),
 		}
-		let listenerInstanciated = 0
-		for (const pair of _pairs) {
-			if (_pairs.length == 1) continue
-			listenerInstanciated++
-			let infos: onSyncInfos = {
-				flashswap: this,
-				token0: this._token0,
-				token1: this._token1,
-				pair,
-				pairs: _pairs.filter((pc) => !eqAddress(pc.address, pair.address)),
+		kLasts[0].pair.on('Sync', (reserve0: BigNumber, reserve1: BigNumber, event: Event) => {
+			try {
+				fn(extras, reserve0, reserve1, event)
+			} catch (error) {
+				throw error
 			}
-			pair.on('Sync', (reserve0: BigNumber, reserve1: BigNumber, event: Event) => {
-				try {
-					fn(infos, reserve0, reserve1, event)
-				} catch (error) {
-					throw error
-				}
-			})
-		}
-		return listenerInstanciated
+		})
+
+		return 1
 	}
 
 	static removeAllListeners() {
@@ -123,18 +80,14 @@ export default class Flashswap {
 	}
 
 	static getNameExchange(address: Address) {
-		let exchange = address.slice(0, 8)
 		for (const ex of EXCHANGE_INFOS) {
 			if (
 				eqAddress(ex.factory, address) ||
 				eqAddress(ex.router, address) ||
 				typeof ex.pair.find((p) => eqAddress(p, address)) != 'undefined'
-			) {
-				exchange = ex.name
-				break
-			}
+			)
+				return ex.name
 		}
-		return exchange
 	}
 
 	static getRouterContractFromPairAddress(pairAddress: Address) {
