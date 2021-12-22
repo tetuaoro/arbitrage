@@ -25,13 +25,13 @@ const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
 		COUNTER_CALL++
 		if (LOCK_ON_SYNC || event.blockNumber <= BLOCKNUMBER) return
 		BLOCKNUMBER = event.blockNumber // also lockable
-		const t0 = Date.now()
+		// const t0 = Date.now()
 
 		const { pair: pc, pairs: others, token0, token1 } = infos
 
 		const [reserve0, reserve1, ts]: [BigNumber, BigNumber, number] = await pc.getReserves()
 
-		const time = t0 / 1000 - ts
+		const time = Date.now() / 1000 - ts
 		if (time > 6) return
 
 		const onePercent = reserve0.div(100),
@@ -111,9 +111,9 @@ const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
 			)
 		}
 		COUNTER++
-		console.log(`${getNameExchange(pc.address)} ${token0.symbol}/${token1.symbol}`)
-		console.log(`${event.blockNumber} : computed in ${(Date.now() - t0) / 1000} seconds`)
-		console.log(`${event.blockNumber} : diff sync ${time} seconds\n`)
+		// console.log(`${getNameExchange(pc.address)} ${token0.symbol}/${token1.symbol}`)
+		// console.log(`${event.blockNumber} : computed in ${(Date.now() - t0) / 1000} seconds`)
+		// console.log(`${event.blockNumber} : diff sync ${time} seconds\n`)
 	} catch (error) {
 		makeError(error, '### onSync ###')
 	}
@@ -237,6 +237,8 @@ const makeError = (error: any, capsule?: string) => {
 		switchInfuraProvider()
 		console.log(`Restart main`)
 		main()
+	} else {
+		process.exit()
 	}
 }
 

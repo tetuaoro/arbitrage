@@ -1,6 +1,6 @@
 {
 	"name": "arbitrage",
-	"version": "0.0.1",
+	"version": "1.0.0",
 	"description": "Make an arbitrage trading bot with your own capital",
 	"main": "build/index.js",
 	"author": "tetuaoro <tetuaoropro@gmail.com>",
