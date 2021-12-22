@@ -63,7 +63,7 @@ var FlashswapV2 = (function () {
                         pair = _b.sent();
                         utils_1.required(!utils_1.eqAddress(ethers_1.constants.AddressZero, pair), FlashswapV2.THROW_NOT_AN_ADDRESS + " #AddressZero");
                         this._pairs.push(utils_1.pairContract.attach(pair));
-                        utils_1.EXCHANGE_INFOS[i].pair.push(pair);
+                        utils_1.EXCHANGE_INFOS[i].pairs.push(pair);
                         i++;
                         if (switchTokens)
                             return [3, 4];
@@ -92,11 +92,12 @@ var FlashswapV2 = (function () {
     };
     FlashswapV2.prototype.onSync = function (fn) {
         return __awaiter(this, void 0, void 0, function () {
-            var kLasts, _i, _a, pair, kLast, extras;
+            var kLasts_1, _i, _a, pair, kLast, extras_1, error_2;
             return __generator(this, function (_b) {
                 switch (_b.label) {
                     case 0:
-                        kLasts = [];
+                        _b.trys.push([0, 5, , 6]);
+                        kLasts_1 = [];
                         _i = 0, _a = this._pairs;
                         _b.label = 1;
                     case 1:
@@ -105,28 +106,34 @@ var FlashswapV2 = (function () {
                         return [4, pair.kLast()];
                     case 2:
                         kLast = _b.sent();
-                        kLasts.push({ k: kLast, pair: pair });
+                        kLasts_1.push({ k: kLast, pair: pair });
                         _b.label = 3;
                     case 3:
                         _i++;
                         return [3, 1];
                     case 4:
-                        kLasts.sort(function (a, b) { return (a.k.gt(b.k) ? -1 : a.k.eq(b.k) ? 0 : 1); });
-                        extras = {
+                        kLasts_1.sort(function (a, b) { return (a.k.gt(b.k) ? -1 : a.k.eq(b.k) ? 0 : 1); });
+                        extras_1 = {
                             token0: this._token0,
                             token1: this._token1,
-                            pair: kLasts[0].pair,
-                            pairs: this._pairs.filter(function (pc) { return !utils_1.eqAddress(pc.address, kLasts[0].pair.address); })
+                            pair: kLasts_1[0].pair,
+                            pairs: this._pairs.filter(function (pc) { return !utils_1.eqAddress(pc.address, kLasts_1[0].pair.address); })
                         };
-                        kLasts[0].pair.on('Sync', function (reserve0, reserve1, event) {
+                        kLasts_1[0].pair.on('Sync', function (reserve0, reserve1, event) {
                             try {
-                                fn(extras, reserve0, reserve1, event);
+                                setImmediate(function () {
+                                    fn(extras_1, reserve0, reserve1, event);
+                                });
                             }
                             catch (error) {
                                 throw error;
                             }
                         });
-                        return [2, 1];
+                        return [3, 6];
+                    case 5:
+                        error_2 = _b.sent();
+                        throw error_2;
+                    case 6: return [2, 1];
                 }
             });
         });
@@ -139,7 +146,7 @@ var FlashswapV2 = (function () {
             var ex = EXCHANGE_INFOS_1[_i];
             if (utils_1.eqAddress(ex.factory, address) ||
                 utils_1.eqAddress(ex.router, address) ||
-                typeof ex.pair.find(function (p) { return utils_1.eqAddress(p, address); }) != 'undefined')
+                typeof ex.pairs.find(function (p) { return utils_1.eqAddress(p, address); }) != 'undefined')
                 return ex.name;
         }
     };
@@ -147,7 +154,7 @@ var FlashswapV2 = (function () {
         var i = 0;
         for (var _i = 0, EXCHANGE_INFOS_2 = utils_1.EXCHANGE_INFOS; _i < EXCHANGE_INFOS_2.length; _i++) {
             var ex = EXCHANGE_INFOS_2[_i];
-            if (typeof ex.pair.find(function (p) { return utils_1.eqAddress(p, pairAddress); }) != 'undefined')
+            if (typeof ex.pairs.find(function (p) { return utils_1.eqAddress(p, pairAddress); }) != 'undefined')
                 return utils_1.ROUTERS[i];
             i++;
         }

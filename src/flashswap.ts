@@ -1,7 +1,6 @@
-import { TransactionResponse } from '@ethersproject/abstract-provider'
-import { Contract, BigNumber, constants, Event, utils } from 'ethers'
+import { Contract, BigNumber, constants, Event } from 'ethers'
 import { Token, Address, onSyncInfos } from './types'
-import { required, FACTORIES, ROUTERS, pairContract, raoContract, provider, eqAddress, EXCHANGE_INFOS, setAsyncInterval } from './utils'
+import { required, FACTORIES, pairContract, eqAddress, EXCHANGE_INFOS } from './utils'
 
 export default class FlashswapV2 {
 	private _token0: Token
@@ -30,7 +29,7 @@ export default class FlashswapV2 {
 				let pair: Address = await fc.getPair(this._token0.address, this._token1.address)
 				required(!eqAddress(constants.AddressZero, pair), `${FlashswapV2.THROW_NOT_AN_ADDRESS} #AddressZero`)
 				this._pairs.push(pairContract.attach(pair))
-				EXCHANGE_INFOS[i].pair.push(pair)
+				EXCHANGE_INFOS[i].pairs.push(pair)
 				i++
 				if (switchTokens) continue
 				switchTokens = true
@@ -48,53 +47,46 @@ export default class FlashswapV2 {
 	}
 
 	async onSync(fn: CallableFunction): Promise<number> {
-		let kLasts: {
-			k: BigNumber
-			pair: Contract
-		}[] = []
-		for (const pair of this._pairs) {
-			let kLast: BigNumber = await pair.kLast()
-			kLasts.push({ k: kLast, pair })
-		}
-
-		kLasts.sort((a, b) => (a.k.gt(b.k) ? -1 : a.k.eq(b.k) ? 0 : 1))
-		let extras: onSyncInfos = {
-			token0: this._token0,
-			token1: this._token1,
-			pair: kLasts[0].pair,
-			pairs: this._pairs.filter((pc) => !eqAddress(pc.address, kLasts[0].pair.address)),
-		}
-		kLasts[0].pair.on('Sync', (reserve0: BigNumber, reserve1: BigNumber, event: Event) => {
-			try {
-				fn(extras, reserve0, reserve1, event)
-			} catch (error) {
-				throw error
+		try {
+			let kLasts: {
+				k: BigNumber
+				pair: Contract
+			}[] = []
+			for (const pair of this._pairs) {
+				let kLast: BigNumber = await pair.kLast()
+				kLasts.push({ k: kLast, pair })
 			}
-		})
+
+			kLasts.sort((a, b) => (a.k.gt(b.k) ? -1 : a.k.eq(b.k) ? 0 : 1))
+			let extras: onSyncInfos = {
+				token0: this._token0,
+				token1: this._token1,
+				pair: kLasts[0].pair,
+				pairs: this._pairs.filter((pc) => !eqAddress(pc.address, kLasts[0].pair.address)),
+			}
+			kLasts[0].pair.on('Sync', (reserve0: BigNumber, reserve1: BigNumber, event: Event) => {
+				try {
+					IMMEDIATE_IDS.push(setImmediate(() => {
+						fn(extras, reserve0, reserve1, event)
+					}))
+				} catch (error) {
+					throw error
+				}
+			})
+		} catch (error) {
+			throw error
+		}
 
 		return 1
 	}
-
-	static removeAllListeners() {
-		provider.removeAllListeners()
-	}
-
-	static getNameExchange(address: Address) {
-		for (const ex of EXCHANGE_INFOS) {
-			if (
-				eqAddress(ex.factory, address) ||
-				eqAddress(ex.router, address) ||
-				typeof ex.pair.find((p) => eqAddress(p, address)) != 'undefined'
-			)
-				return ex.name
-		}
-	}
-
-	static getRouterContractFromPairAddress(pairAddress: Address) {
-		let i = 0
-		for (const ex of EXCHANGE_INFOS) {
-			if (typeof ex.pair.find((p) => eqAddress(p, pairAddress)) != 'undefined') return ROUTERS[i]
-			i++
-		}
-	}
 }
+
+const IMMEDIATE_IDS: NodeJS.Immediate[] = []
+
+process.on('exit', () => {
+	let ln = IMMEDIATE_IDS.length
+	for (let index = 0; index < ln; index++) {
+		clearImmediate(IMMEDIATE_IDS[0])
+		IMMEDIATE_IDS.shift()
+	}
+})

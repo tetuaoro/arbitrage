@@ -19,5 +19,5 @@ declare type Exchanges = {
 	name: string
 	factory: Address
 	router: Address
-	pair: Address[]
+	pairs: Address[]
 }

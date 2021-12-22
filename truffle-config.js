@@ -1,7 +1,11 @@
 const HDWalletProvider = require('@truffle/hdwallet-provider')
 require('dotenv').config()
-const private_key = process.env['PRIVATE_KEY']
-const infuraProjectId = process.env['GANACHE_INFURA']
+const secret = process.env['INFURA_SECRETS'].split(',')[2],
+	id = process.env['INFURA_IDS'].split(',')[2]
+const hdWAllet = new HDWalletProvider({
+	privateKeys: [process.env['PRIVATE_KEY']],
+	providerOrUrl: `https://:${secret}@polygon-mainnet.infura.io/v3/${id}`,
+})
 
 module.exports = {
 	contracts_build_directory: './src/abi',
@@ -13,11 +17,7 @@ module.exports = {
 			network_id: '*',
 		},
 		polygon: {
-			provider: () =>
-				new HDWalletProvider({
-					privateKeys: [private_key],
-					providerOrUrl: 'https://polygon-mainnet.infura.io/v3/' + infuraProjectId,
-				}),
+			provider: () => hdWAllet,
 			network_id: 137,
 			confirmations: 2,
 			timeoutBlocks: 200,

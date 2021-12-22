@@ -4,16 +4,15 @@ import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import fr from 'dayjs/locale/fr'
 import Flashswap from './flashswap'
-import { clearAllAsyncInterval, getToken, raoContract, signer } from './utils'
-import { onSyncInfos, Token } from './types'
+import { getToken, switchInfuraProvider, raoContract, signer, getRouterContractFromPairAddress, getNameExchange } from './utils'
+import { onSyncInfos } from './types'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
+import { Logger } from 'ethers/lib/utils'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
 dayjs.locale(fr)
 dayjs.tz.setDefault('Pacific/Tahiti')
-
-const FLASHSWAPS: Flashswap[] = []
 
 let BLOCKNUMBER = 0,
 	COUNTER_SUCCESS = 0,
@@ -21,13 +20,19 @@ let BLOCKNUMBER = 0,
 	COUNTER_FAIL = 0,
 	COUNTER = 0,
 	LOCK_ON_SYNC = true
-const onSync = async (infos: onSyncInfos, reserve0: BigNumber, reserve1: BigNumber, event: Event) => {
+const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
 	try {
 		COUNTER_CALL++
-		if (LOCK_ON_SYNC || event.blockNumber == BLOCKNUMBER) return
+		if (LOCK_ON_SYNC || event.blockNumber <= BLOCKNUMBER) return
 		BLOCKNUMBER = event.blockNumber // also lockable
+		const t0 = Date.now()
 
 		const { pair: pc, pairs: others, token0, token1 } = infos
+
+		const [reserve0, reserve1, ts]: [BigNumber, BigNumber, number] = await pc.getReserves()
+
+		const time = t0 / 1000 - ts
+		if (time > 6) return
 
 		const onePercent = reserve0.div(100),
 			twoPercent = reserve0.div(50),
@@ -85,7 +90,7 @@ const onSync = async (infos: onSyncInfos, reserve0: BigNumber, reserve1: BigNumb
 						'#': `${percentsToNumber[j]}%`,
 						[`${token0.symbol}_BORROW`]: utils.formatUnits(amountIn, token0.decimals),
 						BLOCKNUMBER,
-						Sell: Flashswap.getNameExchange(others[i].address),
+						Sell: getNameExchange(others[i].address),
 						[token1.symbol]: utils.formatUnits(amountOut, token1.decimals),
 						[`${token1.symbol}_PAYBACK`]: utils.formatUnits(amountPayback, token1.decimals),
 						'Call?': gt,
@@ -98,21 +103,25 @@ const onSync = async (infos: onSyncInfos, reserve0: BigNumber, reserve1: BigNumb
 		if (typeof lastSuccessBigCall != 'undefined') {
 			LOCK_ON_SYNC = true
 			console.log(`flashswap ${utils.formatUnits(lastSuccessBigCall.diff, token1.decimals)} ${token1.symbol}`)
-			console.log(`Borrow : ${Flashswap.getNameExchange(pc.address)}`)
 			console.table(table)
-			setTimeout(() => {
-				callFlashswap(lastSuccessBigCall.amountIn, pc, lastSuccessBigCall.pair1)
-			}, 0)
+			IMMEDIATE_IDS.push(
+				setImmediate(() => {
+					callFlashswap(lastSuccessBigCall.amountIn, pc, lastSuccessBigCall.pair1)
+				})
+			)
 		}
 		COUNTER++
+		console.log(`${getNameExchange(pc.address)} ${token0.symbol}/${token1.symbol}`)
+		console.log(`${event.blockNumber} : computed in ${(Date.now() - t0) / 1000} seconds`)
+		console.log(`${event.blockNumber} : diff sync ${time} seconds\n`)
 	} catch (error) {
-		throw error
+		makeError(error, '### onSync ###')
 	}
 }
 
 const callFlashswap = async (amountIn: BigNumber, pair: Contract, pair2: Contract) => {
 	try {
-		let router = Flashswap.getRouterContractFromPairAddress(pair2.address)
+		let router = getRouterContractFromPairAddress(pair2.address)
 		if (typeof router === 'undefined') {
 		}
 
@@ -122,19 +131,26 @@ const callFlashswap = async (amountIn: BigNumber, pair: Contract, pair2: Contrac
 			),
 			deadline = Math.floor(Date.now() / 1000) + 30,
 			tx: TransactionResponse = await raoContract.connect(signer).callStatic.flashswap(flash, deadline, {
-				gasLimit: utils.parseUnits('2', 'mwei'),
+				gasLimit: utils.parseUnits('2', 'mwei'), // 2.6315
 				gasPrice: utils.parseUnits('380', 'gwei'),
 			}),
 			receipt = await tx.wait(2)
 		LOCK_ON_SYNC = false
 		console.log(receipt)
-		process.kill(process.pid, 'SIGTERM')
+		process.kill(process.pid, 'SIGINT')
 	} catch (error) {
 		console.log(error)
-		process.kill(process.pid, 'SIGTERM')
+		process.kill(process.pid, 'SIGINT')
 	}
 }
 
+const dayjsFormat = (seconds: number) => {
+	let hour = Math.floor(seconds / 60 ** 2),
+		minute = Math.floor(seconds / 60) % 60,
+		second = seconds % 60
+
+	return `${hour}:${minute}:${second}`
+}
 const pid = process.pid,
 	date_launched = dayjs()
 const logs = () => {
@@ -143,7 +159,7 @@ const logs = () => {
 		PID: pid,
 		'Started at': date_launched.format('D/M/YYYY H:m:s'),
 		'Live date': now.format('D/M/YYYY H:m:s'),
-		Running: now.diff(date_launched, 'second'),
+		Running: dayjsFormat(now.diff(date_launched, 'seconds')),
 		COUNTER,
 		COUNTER_CALL,
 		COUNTER_SUCCESS,
@@ -151,10 +167,9 @@ const logs = () => {
 	})
 }
 
+const FLASHSWAPS: Flashswap[] = []
 const app = async () => {
-	console.log(`App start ${date_launched.format('D/M/YYYY H:m:s')}`)
 	try {
-		setInterval(logs, 1e3 * 45)
 		const tokenA = getToken('WMATIC'),
 			tokenB = getToken('WBTC'),
 			tokenC = getToken('WETH'),
@@ -181,28 +196,58 @@ const app = async () => {
 			}
 			i++
 		}
-		console.log(`Create listeners`)
+		console.log(`Created ${FLASHSWAPS.length} instances\nCreate listeners`)
 		i = 0
 		for (const flashswap of FLASHSWAPS) {
 			i += await flashswap.onSync(onSync)
 		}
-		console.log(`--> Created ${i} listeners`)
+		console.log(`Created ${i} listeners`)
 		LOCK_ON_SYNC = false
+		INTERVAL_IDS.push(setInterval(logs, 1e3 * 45))
+		// throw { code: 'TIMEOUT' }
 	} catch (error) {
-		throw error
+		makeError(error, '### app ###')
+	}
+}
+const INTERVAL_IDS: NodeJS.Timer[] = [],
+	IMMEDIATE_IDS: NodeJS.Immediate[] = []
+
+const makeError = (error: any, capsule?: string) => {
+	LOCK_ON_SYNC = true
+	let ln = FLASHSWAPS.length
+	for (let index = 0; index < ln; index++) {
+		FLASHSWAPS.shift()
+	}
+	ln = INTERVAL_IDS.length
+	for (let index = 0; index < ln; index++) {
+		clearInterval(INTERVAL_IDS[0])
+		INTERVAL_IDS.shift()
+	}
+	ln = IMMEDIATE_IDS.length
+	for (let index = 0; index < ln; index++) {
+		clearImmediate(IMMEDIATE_IDS[0])
+		IMMEDIATE_IDS.shift()
+	}
+	console.error(capsule || '###')
+	console.error(error)
+	console.error(capsule || '###')
+
+	if (error && error.code && error.code == Logger.errors.TIMEOUT) {
+		// change provider
+		switchInfuraProvider()
+		console.log(`Restart main`)
+		main()
 	}
 }
 
-;(async () => {
+const main = async () => {
 	console.log(`Arbitrage start`)
 	try {
 		await app()
 	} catch (error) {
-		console.error('###')
-		console.error(error)
-		console.error('###')
+		makeError(error)
 	}
-})()
+}
 
 let LOCK_CLOSE = false
 const close = () => {
@@ -210,11 +255,11 @@ const close = () => {
 	LOCK_CLOSE = true
 	console.log(`\nexit///`)
 	logs()
-	clearAllAsyncInterval()
-	Flashswap.removeAllListeners()
 	process.exit()
 }
 
 process.on('exit', close)
 process.on('SIGINT', close)
 process.on('SIGTERM', close)
+
+main()
