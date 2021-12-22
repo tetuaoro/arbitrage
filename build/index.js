@@ -148,7 +148,7 @@ var onSync = function (infos, _r0, _r1, event) { return __awaiter(void 0, void 0
                                 },
                                 _e[token0.symbol + "_BORROW"] = ethers_1.utils.formatUnits(amountIn, token0.decimals),
                                 _e.BLOCKNUMBER = BLOCKNUMBER,
-                                _e.Sell = flashswap_1["default"].getNameExchange(others[i].address),
+                                _e.Sell = utils_1.getNameExchange(others[i].address),
                                 _e[token1.symbol] = ethers_1.utils.formatUnits(amountOut, token1.decimals),
                                 _e[token1.symbol + "_PAYBACK"] = ethers_1.utils.formatUnits(amountPayback, token1.decimals),
                                 _e['Call?'] = gt,
@@ -169,7 +169,7 @@ var onSync = function (infos, _r0, _r1, event) { return __awaiter(void 0, void 0
                     }));
                 }
                 COUNTER++;
-                console.log(flashswap_1["default"].getNameExchange(pc_1.address) + " " + token0.symbol + "/" + token1.symbol);
+                console.log(utils_1.getNameExchange(pc_1.address) + " " + token0.symbol + "/" + token1.symbol);
                 console.log(event.blockNumber + " : computed in " + (Date.now() - t0) / 1000 + " seconds");
                 console.log(event.blockNumber + " : diff sync " + time + " seconds\n");
                 return [3, 15];
@@ -187,7 +187,7 @@ var callFlashswap = function (amountIn, pair, pair2) { return __awaiter(void 0, 
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 3, , 4]);
-                router = flashswap_1["default"].getRouterContractFromPairAddress(pair2.address);
+                router = utils_1.getRouterContractFromPairAddress(pair2.address);
                 if (typeof router === 'undefined') {
                 }
                 flash = ethers_1.utils.defaultAbiCoder.encode(['FlashData(uint256 amountBorrow, address pairBorrow, address routerSell)'], [{ amountBorrow: amountIn, pairBorrow: pair.address, routerSell: router.address }]), deadline = Math.floor(Date.now() / 1000) + 30;
@@ -299,7 +299,7 @@ var app = function () { return __awaiter(void 0, void 0, void 0, function () {
                 console.log("Created " + i + " listeners");
                 LOCK_ON_SYNC = false;
                 INTERVAL_IDS.push(setInterval(logs, 1e3 * 45));
-                throw { code: 'TIMEOUT' };
+                return [3, 15];
             case 14:
                 error_4 = _d.sent();
                 makeError(error_4, '### app ###');
@@ -316,12 +316,10 @@ var makeError = function (error, capsule) {
         FLASHSWAPS.shift();
     }
     ln = INTERVAL_IDS.length;
-    console.log(ln);
     for (var index = 0; index < ln; index++) {
         clearInterval(INTERVAL_IDS[0]);
         INTERVAL_IDS.shift();
     }
-    console.log(INTERVAL_IDS.length);
     ln = IMMEDIATE_IDS.length;
     for (var index = 0; index < ln; index++) {
         clearImmediate(IMMEDIATE_IDS[0]);
@@ -364,7 +362,6 @@ var close = function () {
     LOCK_CLOSE = true;
     console.log("\nexit///");
     logs();
-    flashswap_1["default"].removeAllListeners();
     process.exit();
 };
 process.on('exit', close);

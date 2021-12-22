@@ -121,9 +121,9 @@ var FlashswapV2 = (function () {
                         };
                         kLasts_1[0].pair.on('Sync', function (reserve0, reserve1, event) {
                             try {
-                                setImmediate(function () {
+                                IMMEDIATE_IDS.push(setImmediate(function () {
                                     fn(extras_1, reserve0, reserve1, event);
-                                });
+                                }));
                             }
                             catch (error) {
                                 throw error;
@@ -138,29 +138,16 @@ var FlashswapV2 = (function () {
             });
         });
     };
-    FlashswapV2.removeAllListeners = function () {
-        utils_1.provider.removeAllListeners();
-    };
-    FlashswapV2.getNameExchange = function (address) {
-        for (var _i = 0, EXCHANGE_INFOS_1 = utils_1.EXCHANGE_INFOS; _i < EXCHANGE_INFOS_1.length; _i++) {
-            var ex = EXCHANGE_INFOS_1[_i];
-            if (utils_1.eqAddress(ex.factory, address) ||
-                utils_1.eqAddress(ex.router, address) ||
-                typeof ex.pairs.find(function (p) { return utils_1.eqAddress(p, address); }) != 'undefined')
-                return ex.name;
-        }
-    };
-    FlashswapV2.getRouterContractFromPairAddress = function (pairAddress) {
-        var i = 0;
-        for (var _i = 0, EXCHANGE_INFOS_2 = utils_1.EXCHANGE_INFOS; _i < EXCHANGE_INFOS_2.length; _i++) {
-            var ex = EXCHANGE_INFOS_2[_i];
-            if (typeof ex.pairs.find(function (p) { return utils_1.eqAddress(p, pairAddress); }) != 'undefined')
-                return utils_1.ROUTERS[i];
-            i++;
-        }
-    };
     FlashswapV2.THROW_NOT_AN_ADDRESS = 'Flashswap: THROW_NOT_AN_ADDRESS';
     FlashswapV2.THROW_NO_FACTORIES = 'Flashswap: THROW_NO_FACTORIES';
     return FlashswapV2;
 }());
 exports["default"] = FlashswapV2;
+var IMMEDIATE_IDS = [];
+process.on('exit', function () {
+    var ln = IMMEDIATE_IDS.length;
+    for (var index = 0; index < ln; index++) {
+        clearImmediate(IMMEDIATE_IDS[0]);
+        IMMEDIATE_IDS.shift();
+    }
+});
