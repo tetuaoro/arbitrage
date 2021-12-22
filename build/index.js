@@ -60,7 +60,7 @@ dayjs_1["default"].locale(fr_1["default"]);
 dayjs_1["default"].tz.setDefault('Pacific/Tahiti');
 var BLOCKNUMBER = 0, COUNTER_SUCCESS = 0, COUNTER_CALL = 0, COUNTER_FAIL = 0, COUNTER = 0, LOCK_ON_SYNC = true;
 var onSync = function (infos, _r0, _r1, event) { return __awaiter(void 0, void 0, void 0, function () {
-    var t0, pc_1, others, token0, token1, _a, reserve0, reserve1, ts, time, onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent, percentsToNumber, percents, amountsPayback, _i, percents_1, amountInPercent, promiseReserveOthers, _b, others_1, pair, reserveOthers, promiseReserveOthers_1, promiseReserveOthers_1_1, reserves, e_1_1, table, i, diff, lastSuccessBigCall_1, _c, reserveOthers_1, reserve, j, _d, amountsPayback_1, amountPayback, amountIn, amountInWithFee, numerator, denominator, amountOut, gt, diff2, error_1;
+    var pc_1, others, token0, token1, _a, reserve0, reserve1, ts, time, onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent, percentsToNumber, percents, amountsPayback, _i, percents_1, amountInPercent, promiseReserveOthers, _b, others_1, pair, reserveOthers, promiseReserveOthers_1, promiseReserveOthers_1_1, reserves, e_1_1, table, i, diff, lastSuccessBigCall_1, _c, reserveOthers_1, reserve, j, _d, amountsPayback_1, amountPayback, amountIn, amountInWithFee, numerator, denominator, amountOut, gt, diff2, error_1;
     var _e;
     var e_1, _f;
     return __generator(this, function (_g) {
@@ -71,12 +71,11 @@ var onSync = function (infos, _r0, _r1, event) { return __awaiter(void 0, void 0
                 if (LOCK_ON_SYNC || event.blockNumber <= BLOCKNUMBER)
                     return [2];
                 BLOCKNUMBER = event.blockNumber;
-                t0 = Date.now();
                 pc_1 = infos.pair, others = infos.pairs, token0 = infos.token0, token1 = infos.token1;
                 return [4, pc_1.getReserves()];
             case 1:
                 _a = _g.sent(), reserve0 = _a[0], reserve1 = _a[1], ts = _a[2];
-                time = t0 / 1000 - ts;
+                time = Date.now() / 1000 - ts;
                 if (time > 6)
                     return [2];
                 onePercent = reserve0.div(100), twoPercent = reserve0.div(50), fivePercent = reserve0.div(20), tenPercent = reserve0.div(10), twentyPercent = reserve0.div(5), fiftyPercent = reserve0.div(2), percentsToNumber = [1, 2, 5, 10, 20, 50], percents = [onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent];
@@ -169,9 +168,6 @@ var onSync = function (infos, _r0, _r1, event) { return __awaiter(void 0, void 0
                     }));
                 }
                 COUNTER++;
-                console.log(utils_1.getNameExchange(pc_1.address) + " " + token0.symbol + "/" + token1.symbol);
-                console.log(event.blockNumber + " : computed in " + (Date.now() - t0) / 1000 + " seconds");
-                console.log(event.blockNumber + " : diff sync " + time + " seconds\n");
                 return [3, 15];
             case 14:
                 error_1 = _g.sent();
@@ -332,6 +328,9 @@ var makeError = function (error, capsule) {
         utils_1.switchInfuraProvider();
         console.log("Restart main");
         main();
+    }
+    else {
+        process.exit();
     }
 };
 var main = function () { return __awaiter(void 0, void 0, void 0, function () {
