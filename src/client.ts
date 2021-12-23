@@ -6,8 +6,9 @@ import { ServerData, ServerOnSync } from './types'
 config()
 const isDevelopment = process.env['NODE_ENV'] == 'dev'
 const PORT = 3001 // cloud default open port
-const SOCKET_URL = isDevelopment ? `ws://localhost:${PORT}` : `${process.env['SOCKET_URL']}:${PORT}`
+const SOCKET_URL = isDevelopment ? `wss://localhost:${PORT}` : `${process.env['SOCKET_URL']}:${PORT}`
 const socket = io(SOCKET_URL, {
+	rejectUnauthorized: false,
 	autoConnect: false,
 	port: PORT,
 })

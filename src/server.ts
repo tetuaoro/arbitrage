@@ -6,6 +6,11 @@ import { onSyncInfos, ServerOnSync } from './types'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { Logger } from 'ethers/lib/utils'
 
+import express from 'express'
+import { Server, Socket } from 'socket.io'
+import { createServer } from 'https'
+import { readFileSync } from 'fs'
+
 let BLOCKNUMBER = 0,
 	COUNTER_SUCCESS = 0,
 	COUNTER_CALL = 0,
@@ -246,6 +251,36 @@ const close = () => {
 	console.log(`\n🔴 purge server`)
 	process.exit()
 }
+
+const appExpress = express()
+const appServer = createServer({
+	key: readFileSync('certificat/server.key'),
+	cert: readFileSync('certificat/server.cert'),
+}, appExpress)
+const server = appServer.listen(3001)
+
+appExpress.use(express.static('public'))
+
+const io = new Server(server, {
+	cors: {
+		origin: 'https://ionos.rao-nagos.pf',
+		methods: ['GET', 'POST'],
+	},
+})
+
+console.log(process.env['PORT'], process.env['IP'])
+
+io.on('listening', () => {
+	console.log(`server listen at :3001`)
+})
+
+io.on('connection', (socket: Socket) => {
+	console.log(`new user /${socket.id}`)
+
+	socket.on('disconnect', () => {
+		console.log(`${socket.id} disconnected`)
+	})
+})
 
 process.on('exit', close)
 process.on('SIGINT', close)
