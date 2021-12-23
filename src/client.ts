@@ -9,6 +9,7 @@ const PORT = 3001 // cloud default open port
 const SOCKET_URL = isDevelopment ? `ws://localhost:${PORT}` : `${process.env['SOCKET_URL']}:${PORT}`
 const socket = io(SOCKET_URL, {
 	autoConnect: false,
+	port: PORT,
 })
 
 socket.on('connect_error', (err) => {
@@ -34,7 +35,6 @@ socket.on(IO_EVENT.SERVER_DISCONNECT, () => {
 const app = () => {
 	console.log(`App monitor arbitrage bot`)
 	console.log(`url ${SOCKET_URL}`)
-
 	socket.connect()
 }
 

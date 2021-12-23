@@ -1,14 +1,10 @@
 import { BigNumber, Contract, Event, utils } from 'ethers'
-import dayjs from 'dayjs'
 import Flashswap from './flashswap'
-import { IO_EVENT, IO_MESSAGE, MESSAGE_SUCCESS_TRANSACTION } from './constants'
+import { MESSAGE_SUCCESS_TRANSACTION } from './constants'
 import { getToken, switchInfuraProvider, raoContract, signer, getRouterContractFromPairAddress, getNameExchange } from './utils'
-import { onSyncInfos, ServerData, ServerOnSync } from './types'
+import { onSyncInfos, ServerOnSync } from './types'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { Logger } from 'ethers/lib/utils'
-
-import { createServer } from 'http'
-import { Server } from 'socket.io'
 
 let BLOCKNUMBER = 0,
 	COUNTER_SUCCESS = 0,
@@ -70,6 +66,7 @@ const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
 					gt = amountOut.gt(amountPayback)
 
 				if (gt) {
+					COUNTER_SUCCESS++
 					let diff2 = amountOut.sub(amountPayback)
 					if (diff2.gt(diff)) {
 						diff = diff2
@@ -79,7 +76,6 @@ const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
 							diff,
 						}
 					}
-					COUNTER_SUCCESS++
 					table.push({
 						'#': `${percentsToNumber[j]}%`,
 						[`${token0.symbol}_BORROW`]: utils.formatUnits(amountIn, token0.decimals),
@@ -96,14 +92,12 @@ const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
 		}
 		if (typeof lastSuccessBigCall != 'undefined') {
 			LOCK_ON_SYNC = true
-			console.log(`call flashswap for ${utils.formatUnits(lastSuccessBigCall.diff, token1.decimals)} ${token1.symbol}`)
+			console.log(`💲 call flashswap for ${utils.formatUnits(lastSuccessBigCall.diff, token1.decimals)} ${token1.symbol}`)
 			IMMEDIATE_IDS.push(
 				setImmediate(() => {
 					callFlashswap(lastSuccessBigCall.amountIn, pc, lastSuccessBigCall.pair1)
 				})
 			)
-			console.log(`emit event ${IO_EVENT.CLIENT_EMIT_ONSYNC}`)
-			io.emit(IO_EVENT.CLIENT_EMIT_ONSYNC, table)
 		}
 		COUNTER++
 	} catch (error) {
@@ -128,38 +122,37 @@ const callFlashswap = async (amountIn: BigNumber, pair: Contract, pair2: Contrac
 			})
 		await tx.wait(2)
 		LOCK_ON_SYNC = false
-		console.log(MESSAGE_SUCCESS_TRANSACTION)
+		console.log(`😀 ${MESSAGE_SUCCESS_TRANSACTION}`)
 	} catch (error) {
 		makeError(error)
 	}
 }
 
-const dayjsFormat = (seconds: number) => {
-	let hour = Math.floor(seconds / 60 ** 2),
-		minute = Math.floor(seconds / 60) % 60,
-		second = seconds % 60
+// const dayjsFormat = (seconds: number) => {
+// 	let hour = Math.floor(seconds / 60 ** 2),
+// 		minute = Math.floor(seconds / 60) % 60,
+// 		second = seconds % 60
 
-	return `${hour}:${minute}:${second}`
-}
+// 	return `${hour}:${minute}:${second}`
+// }
 
-const getDate = () => {
-	return dayjs().format('D/M/YYYY H:m:s')
-}
-const date_launched = dayjs()
+// const getDate = () => {
+// 	return dayjs().format('D/M/YYYY H:m:s')
+// }
+// const date_launched = dayjs()
 const logs = () => {
-	let now = dayjs()
-	const data: ServerData = {
-		StartedAt: date_launched.format('D/M/YYYY H:m:s'),
-		LiveDate: now.format('D/M/YYYY H:m:s'),
-		Running: dayjsFormat(now.diff(date_launched, 'seconds')),
-		COUNTER,
-		COUNTER_CALL,
-		COUNTER_SUCCESS,
-		COUNTER_FAIL,
-	}
+	// let now = dayjs()
+	// const data: ServerData = {
+	// 	StartedAt: date_launched.format('D/M/YYYY H:m:s'),
+	// 	LiveDate: now.format('D/M/YYYY H:m:s'),
+	// 	Running: dayjsFormat(now.diff(date_launched, 'seconds')),
+	// 	COUNTER,
+	// 	COUNTER_CALL,
+	// 	COUNTER_SUCCESS,
+	// 	COUNTER_FAIL,
+	// }
 
-	console.log(`emit event ${IO_EVENT.CLIENT_EMIT_LOG}`)
-	io.emit(IO_EVENT.CLIENT_EMIT_LOG, data)
+	console.log(`💬 ${COUNTER_CALL}/${COUNTER}/${COUNTER_SUCCESS}/${COUNTER_FAIL}`)
 }
 
 const FLASHSWAPS: Flashswap[] = [],
@@ -174,7 +167,7 @@ const app = async () => {
 
 		const tokens = [tokenA, tokenB, tokenC, tokenD]
 
-		console.log(`Create instances for ${tokens.length} tokens`)
+		console.log(`🔶 Create instances for ${tokens.length} tokens`)
 		let i = 0
 		for (const t0 of tokens) {
 			let j = -1
@@ -183,7 +176,7 @@ const app = async () => {
 				if (i >= j) continue
 				let flashswap = new Flashswap(t0, t1)
 				try {
-					console.log(`\tflashswap[${j}] ${t0.symbol}/${t1.symbol}`)
+					console.log(`flashswap[${j}] ${t0.symbol}/${t1.symbol}`)
 					await flashswap.initialize()
 					FLASHSWAPS.push(flashswap)
 				} catch (error) {
@@ -193,7 +186,7 @@ const app = async () => {
 			}
 			i++
 		}
-		console.log(`Created ${FLASHSWAPS.length} instances\nCreate listeners`)
+		console.log(`Created ${FLASHSWAPS.length} instances\n🔶 Create listeners`)
 		i = 0
 		for (const flashswap of FLASHSWAPS) {
 			i += await flashswap.onSync(onSync)
@@ -201,9 +194,6 @@ const app = async () => {
 		console.log(`Created ${i} listeners`)
 		LOCK_ON_SYNC = false
 		INTERVAL_IDS.push(setInterval(logs, 1e3 * 120))
-		console.log(`Create socket at :${PORT}`)
-		io.listen(server)
-		console.log(`Created socket`)
 	} catch (error) {
 		makeError(error, '### app ###')
 	}
@@ -235,12 +225,13 @@ const makeError = (error: any, capsule?: string) => {
 		console.log(`Restart main`)
 		main()
 	} else {
+		console.log(`😭 Force exit`)
 		process.exit()
 	}
 }
 
 const main = async () => {
-	console.log(`Arbitrage start`)
+	console.log(`🔵 Arbitrage start`)
 	try {
 		await app()
 	} catch (error) {
@@ -252,30 +243,12 @@ let LOCK_CLOSE = false
 const close = () => {
 	if (LOCK_CLOSE) return
 	LOCK_CLOSE = true
-	console.log(`\npurge server`)
-	io.disconnectSockets(true)
-	io.close((err) => console.error(err))
+	console.log(`\n🔴 purge server`)
 	process.exit()
 }
 
 process.on('exit', close)
 process.on('SIGINT', close)
 process.on('SIGTERM', close)
-
-const PORT = 3001 // cloud default open port
-const server = createServer().listen(PORT, '0.0.0.0')
-const io = new Server()
-
-server.on('listening', () => {
-	console.log(`server listening at :${PORT}`)
-})
-
-io.on(IO_EVENT.SERVER_CONNECTION, (socket) => {
-	console.log(`${IO_MESSAGE.NEW_USER} is ${socket.id} at ${getDate()}`)
-
-	socket.on(IO_EVENT.SERVER_DISCONNECT, () => {
-		console.log(`${socket.id} disconnect at ${getDate()}`)
-	})
-})
 
 main()

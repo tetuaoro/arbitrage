@@ -38,7 +38,7 @@ export default class FlashswapV2 {
 					let temp = this._token0
 					this._token0 = this._token1
 					this._token1 = temp
-					console.log(`\t\tswitch ${this._token0.symbol}/${this._token1.symbol}`)
+					console.log(`switch ${this._token0.symbol}/${this._token1.symbol}`)
 				}
 			}
 		} catch (error) {
@@ -87,7 +87,7 @@ const IMMEDIATE_IDS: NodeJS.Immediate[] = []
 
 process.on('exit', () => {
 	let ln = IMMEDIATE_IDS.length
-	console.log(`purge flashswap script`)
+	console.log(`🔴 purge flashswap`)
 	for (let index = 0; index < ln; index++) {
 		clearImmediate(IMMEDIATE_IDS[0])
 		IMMEDIATE_IDS.shift()

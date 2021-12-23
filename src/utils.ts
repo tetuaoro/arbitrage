@@ -154,6 +154,6 @@ export const getRouterContractFromPairAddress = (pairAddress: Address) => {
 }
 
 process.on('exit', () => {
-	console.log(`purge utils script`)
+	console.log(`🔴 purge utils`)
 	provider.removeAllListeners()
 })
