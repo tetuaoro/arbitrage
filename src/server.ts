@@ -8,9 +8,6 @@ import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { Logger } from 'ethers/lib/utils'
 
 import { Server } from 'socket.io'
-import { createServer as https } from 'https'
-import { createServer as http } from 'http'
-import { readFileSync } from 'fs'
 
 let BLOCKNUMBER = 0,
 	COUNTER_SUCCESS = 0,
@@ -251,11 +248,9 @@ let LOCK_CLOSE = false
 const close = () => {
 	if (LOCK_CLOSE) return
 	LOCK_CLOSE = true
-	console.log(`\nexit///`)
-	logs()
+	console.log(`\nexit/// purge server`)
 	io.disconnectSockets(true)
 	io.close((err) => console.error(err))
-	server.close((err) => console.error(err))
 	process.exit()
 }
 
@@ -264,29 +259,19 @@ process.on('SIGINT', close)
 process.on('SIGTERM', close)
 
 const PORT = parseInt(process.env['PORT']) || 3001
-const server = isDevelopment
-	? http()
-	: https({
-			key: readFileSync(`certificat/server.key`),
-			cert: readFileSync(`certificat/server.cert`),
-	  })
-const options = isDevelopment
-	? {}
-	: {
-			cors: {
-				origin: 'https://rao-nagos.pf',
-				methods: ['GET', 'POST'],
-				credentials: true,
-			},
-	  }
-const io = new Server(server, options)
+const io = new Server(PORT, {
+	cors: {
+		origin: !isDevelopment ? 'https://rao-nagos.pf' : 'http://localhost',
+		credentials: true,
+	},
+})
 
 io.on(IO_EVENT.SERVER_CONNECTION, (socket) => {
 	console.log(`${IO_MESSAGE.NEW_USER} is ${socket.id} at ${getDate()}`)
-})
 
-server.listen(PORT, () => {
-	console.log(`server listening on :${PORT}`)
+	socket.on(IO_EVENT.SERVER_DISCONNECT, () => {
+		console.log(`${socket.id} disconnect at ${getDate()}`)
+	})
 })
 
 main()
