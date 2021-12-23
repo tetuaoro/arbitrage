@@ -9,8 +9,6 @@ const PORT = process.env['PORT'] || 3001
 const SOCKET_URL = isDevelopment ? `ws://localhost:${PORT}` : `${process.env['SOCKET_URL']}:${PORT}`
 const socket = io(SOCKET_URL, {
 	autoConnect: false,
-	secure: true,
-	withCredentials: true,
 })
 
 socket.on(IO_EVENT.CLIENT_CONNECTION, () => {

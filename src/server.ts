@@ -2,11 +2,14 @@ import { BigNumber, Contract, Event, utils } from 'ethers'
 import dayjs from 'dayjs'
 import Flashswap from './flashswap'
 import { IO_EVENT, IO_MESSAGE, MESSAGE_SUCCESS_TRANSACTION } from './constants'
-import { getToken, switchInfuraProvider, raoContract, signer, getRouterContractFromPairAddress, getNameExchange, isDevelopment } from './utils'
+import { getToken, switchInfuraProvider, raoContract, signer, getRouterContractFromPairAddress, getNameExchange } from './utils'
 import { onSyncInfos, ServerData, ServerOnSync } from './types'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { Logger } from 'ethers/lib/utils'
 
+import express from 'express'
+import { createServer } from 'http'
+import cors from 'cors'
 import { Server } from 'socket.io'
 
 let BLOCKNUMBER = 0,
@@ -200,6 +203,9 @@ const app = async () => {
 		console.log(`Created ${i} listeners`)
 		LOCK_ON_SYNC = false
 		INTERVAL_IDS.push(setInterval(logs, 1e3 * 120))
+		console.log(`Create socket`)
+		io.attach(httpServer)
+		console.log(`Created socket`)
 	} catch (error) {
 		makeError(error, '### app ###')
 	}
@@ -259,10 +265,12 @@ process.on('SIGINT', close)
 process.on('SIGTERM', close)
 
 const PORT = parseInt(process.env['PORT']) || 3001
-const io = new Server(PORT, {
+const appServer = express()
+appServer.use(cors())
+const httpServer = createServer(appServer)
+const io = new Server({
 	cors: {
-		origin: !isDevelopment ? 'https://rao-nagos.pf' : 'http://localhost',
-		credentials: true,
+		origin: '*',
 	},
 })
 
@@ -272,6 +280,10 @@ io.on(IO_EVENT.SERVER_CONNECTION, (socket) => {
 	socket.on(IO_EVENT.SERVER_DISCONNECT, () => {
 		console.log(`${socket.id} disconnect at ${getDate()}`)
 	})
+})
+
+httpServer.listen(PORT, () => {
+	console.log(`server listening at :${PORT}`)
 })
 
 main()
