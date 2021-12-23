@@ -8,6 +8,8 @@ import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { Logger } from 'ethers/lib/utils'
 import { Server } from 'socket.io'
 
+import { createServer } from 'http'
+
 let BLOCKNUMBER = 0,
 	COUNTER_SUCCESS = 0,
 	COUNTER_CALL = 0,
@@ -251,6 +253,7 @@ const close = () => {
 	logs()
 	io.disconnectSockets(true)
 	io.close((err) => console.error(err))
+	server.close((err) => console.error(err))
 	process.exit()
 }
 
@@ -259,10 +262,15 @@ process.on('SIGINT', close)
 process.on('SIGTERM', close)
 
 const PORT = parseInt(process.env['PORT']) || 3001
-const io = new Server(PORT)
+const server = createServer()
+const io = new Server(server)
 
 io.on(IO_EVENT.SERVER_CONNECTION, (socket) => {
 	console.log(`${IO_MESSAGE.NEW_USER} is ${socket.id} at ${getDate()}`)
+})
+
+server.listen(PORT, () => {
+	console.log(`server listening on :${PORT}`)
 })
 
 main()
