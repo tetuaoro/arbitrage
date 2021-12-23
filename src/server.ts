@@ -269,7 +269,11 @@ const io = new Server({
 	},
 })
 const server = new http()
-server.listen(PORT, '0.0.0.0')
+server.listen(PORT, '74.208.27.253')
+
+server.on('listening', () => {
+	console.log(`server listening at ${PORT}`)
+})
 
 io.on(IO_EVENT.SERVER_CONNECTION, (socket) => {
 	console.log(`${IO_MESSAGE.NEW_USER} is ${socket.id} at ${getDate()}`)
