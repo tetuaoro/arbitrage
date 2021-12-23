@@ -11,6 +11,11 @@ const socket = io(SOCKET_URL, {
 	autoConnect: false,
 })
 
+socket.on('connect_error', (err) => {
+	console.log(`connect_error due to ${err.message}`)
+	console.log(err)
+})
+
 socket.on(IO_EVENT.CLIENT_CONNECTION, () => {
 	console.log(`socket connected as ${socket.id} at :${PORT}`)
 })
@@ -29,6 +34,8 @@ socket.on(IO_EVENT.SERVER_DISCONNECT, () => {
 
 const app = () => {
 	console.log(`App monitor arbitrage bot`)
+	console.log(`url ${SOCKET_URL}`)
+
 	socket.connect()
 }
 
