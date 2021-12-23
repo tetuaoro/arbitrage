@@ -5,11 +5,22 @@ import { ServerData, ServerOnSync } from './types'
 
 config()
 const isDevelopment = process.env['NODE_ENV'] == 'dev'
-const url = isDevelopment ? `http://localhost:${process.env['PORT']}` : `${process.env['SOCKET_URL']}:${process.env['PORT']}`
-const socket = io(url)
+const PORT = process.env['PORT'] || 3001
+const SOCKET_URL = isDevelopment ? `ws://localhost:${PORT}` : `${process.env['SOCKET_URL']}:${PORT}`
+const options = isDevelopment
+	? {
+			autoConnect: false,
+	  }
+	: {
+			secure: true,
+			autoConnect: false,
+			port: PORT,
+			withCredentials: true,
+	  }
+const socket = io(SOCKET_URL, options)
 
 socket.on(IO_EVENT.CLIENT_CONNECTION, () => {
-	console.log(`socket connected as ${socket.id} on :${process.env['PORT']}`)
+	console.log(`socket connected as ${socket.id} on :${PORT}`)
 })
 
 socket.on(IO_EVENT.CLIENT_EMIT_LOG, (logs: ServerData) => {
@@ -23,3 +34,14 @@ socket.on(IO_EVENT.CLIENT_CONNECTION, (onSyncData: ServerOnSync[]) => {
 socket.on(IO_EVENT.SERVER_DECONNECTION, () => {
 	process.exit()
 })
+
+const app = () => {
+	console.log(`App monitor arbitrage bot`)
+	socket.connect()
+}
+
+process.on('exit', () => {
+	socket.close()
+})
+
+app()

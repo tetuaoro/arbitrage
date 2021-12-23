@@ -2,13 +2,15 @@ import { BigNumber, Contract, Event, utils } from 'ethers'
 import dayjs from 'dayjs'
 import Flashswap from './flashswap'
 import { IO_EVENT, IO_MESSAGE, MESSAGE_SUCCESS_TRANSACTION } from './constants'
-import { getToken, switchInfuraProvider, raoContract, signer, getRouterContractFromPairAddress, getNameExchange } from './utils'
+import { getToken, switchInfuraProvider, raoContract, signer, getRouterContractFromPairAddress, getNameExchange, isDevelopment } from './utils'
 import { onSyncInfos, ServerData, ServerOnSync } from './types'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { Logger } from 'ethers/lib/utils'
-import { Server } from 'socket.io'
 
-import { createServer } from 'http'
+import { Server } from 'socket.io'
+import { createServer as https } from 'https'
+import { createServer as http } from 'http'
+import { readFileSync } from 'fs'
 
 let BLOCKNUMBER = 0,
 	COUNTER_SUCCESS = 0,
@@ -262,8 +264,22 @@ process.on('SIGINT', close)
 process.on('SIGTERM', close)
 
 const PORT = parseInt(process.env['PORT']) || 3001
-const server = createServer()
-const io = new Server(server)
+const server = isDevelopment
+	? http()
+	: https({
+			key: readFileSync(`certificat/server.key`),
+			cert: readFileSync(`certificat/server.cert`),
+	  })
+const options = isDevelopment
+	? {}
+	: {
+			cors: {
+				origin: 'https://rao-nagos.pf',
+				methods: ['GET', 'POST'],
+				credentials: true,
+			},
+	  }
+const io = new Server(server, options)
 
 io.on(IO_EVENT.SERVER_CONNECTION, (socket) => {
 	console.log(`${IO_MESSAGE.NEW_USER} is ${socket.id} at ${getDate()}`)
