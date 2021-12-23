@@ -5,7 +5,7 @@ import { ServerData, ServerOnSync } from './types'
 
 config()
 const isDevelopment = process.env['NODE_ENV'] == 'dev'
-const PORT = process.env['PORT'] || 3001
+const PORT = 3001 // cloud default open port
 const SOCKET_URL = isDevelopment ? `ws://localhost:${PORT}` : `${process.env['SOCKET_URL']}:${PORT}`
 const socket = io(SOCKET_URL, {
 	autoConnect: false,
@@ -13,7 +13,6 @@ const socket = io(SOCKET_URL, {
 
 socket.on('connect_error', (err) => {
 	console.log(`connect_error due to ${err.message}`)
-	console.log(err)
 })
 
 socket.on(IO_EVENT.CLIENT_CONNECTION, () => {

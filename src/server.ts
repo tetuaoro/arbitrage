@@ -7,7 +7,7 @@ import { onSyncInfos, ServerData, ServerOnSync } from './types'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { Logger } from 'ethers/lib/utils'
 
-import { createServer, Server as http } from 'http'
+import { createServer } from 'http'
 import { Server } from 'socket.io'
 
 let BLOCKNUMBER = 0,
@@ -201,8 +201,8 @@ const app = async () => {
 		console.log(`Created ${i} listeners`)
 		LOCK_ON_SYNC = false
 		INTERVAL_IDS.push(setInterval(logs, 1e3 * 120))
-		console.log(`Create socket`)
-		io.attach(server)
+		console.log(`Create socket at :${PORT}`)
+		io.listen(server)
 		console.log(`Created socket`)
 	} catch (error) {
 		makeError(error, '### app ###')
@@ -252,7 +252,7 @@ let LOCK_CLOSE = false
 const close = () => {
 	if (LOCK_CLOSE) return
 	LOCK_CLOSE = true
-	console.log(`\nexit/// purge server`)
+	console.log(`\npurge server`)
 	io.disconnectSockets(true)
 	io.close((err) => console.error(err))
 	process.exit()
@@ -262,17 +262,12 @@ process.on('exit', close)
 process.on('SIGINT', close)
 process.on('SIGTERM', close)
 
-const PORT = parseInt(process.env['PORT']) || 3001
-const io = new Server({
-	cors: {
-		origin: '*',
-	},
-})
-const server = new http()
-server.listen(PORT, '74.208.27.253')
+const PORT = 3001 // cloud default open port
+const server = createServer().listen(PORT, '0.0.0.0')
+const io = new Server()
 
 server.on('listening', () => {
-	console.log(`server listening at ${PORT}`)
+	console.log(`server listening at :${PORT}`)
 })
 
 io.on(IO_EVENT.SERVER_CONNECTION, (socket) => {
