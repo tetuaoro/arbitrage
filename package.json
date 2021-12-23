@@ -14,8 +14,8 @@
 		"test": "yarn compile && yarn start",
 		"migrate:prod": "truffle migrate --network polygon",
 		"start:prod": "node .",
-		"test:monitor": "NODE_ENV=dev yarn monitor",
-		"monitor": "node build/client.js"
+		"test:monitor": "tsc -p tsconfig.client.json && NODE_ENV=dev yarn monitor",
+		"monitor": "node dist/client.js"
 	},
 	"dependencies": {
 		"dayjs": "^1.10.7",
