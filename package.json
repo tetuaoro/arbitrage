@@ -1,23 +1,28 @@
 {
 	"name": "arbitrage",
-	"version": "1.0.0",
-	"description": "Make an arbitrage trading bot with your own capital",
-	"main": "build/index.js",
+	"version": "1.1.1",
+	"description": "Make an arbitrage trading bot : sniping & monitoring uniswap fork on polygon network",
+	"main": "build/server.js",
 	"author": "tetuaoro <tetuaoropro@gmail.com>",
 	"license": "MIT",
 	"private": false,
 	"scripts": {
 		"migrate": "truffle migrate --network development",
-		"build": "tsc && gulp && node minify.js",
-		"start": "NODE_ENV=dev yarn start:prod",
-		"test": "yarn build && yarn start",
+		"compile": "tsc --build --clean && tsc",
+		"build": "yarn compile && gulp && node minify.js",
+		"start": "NODE_ENV=dev node .",
+		"test": "yarn compile && yarn start",
 		"migrate:prod": "truffle migrate --network polygon",
-		"start:prod": "node ."
+		"start:prod": "node .",
+		"test:monitor": "NODE_ENV=dev yarn monitor",
+		"monitor": "node build/client.js"
 	},
 	"dependencies": {
 		"dayjs": "^1.10.7",
 		"dotenv": "^10.0.0",
-		"ethers": "^5.5.1"
+		"ethers": "^5.5.1",
+		"socket.io": "^4.4.0",
+		"socket.io-client": "^4.4.0"
 	},
 	"devDependencies": {
 		"@node-minify/core": "^6.2.0",

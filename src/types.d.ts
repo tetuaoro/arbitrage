@@ -21,3 +21,17 @@ declare type Exchanges = {
 	router: Address
 	pairs: Address[]
 }
+
+declare type ServerData = {
+	StartedAt: string
+	LiveDate: string
+	Running: string
+	COUNTER: number
+	COUNTER_CALL: number
+	COUNTER_SUCCESS: number
+	COUNTER_FAIL: number
+}
+
+declare type ServerOnSync = {
+	[key: string]: string | number | boolean
+}

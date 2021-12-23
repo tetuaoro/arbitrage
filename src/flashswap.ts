@@ -66,9 +66,11 @@ export default class FlashswapV2 {
 			}
 			kLasts[0].pair.on('Sync', (reserve0: BigNumber, reserve1: BigNumber, event: Event) => {
 				try {
-					IMMEDIATE_IDS.push(setImmediate(() => {
-						fn(extras, reserve0, reserve1, event)
-					}))
+					IMMEDIATE_IDS.push(
+						setImmediate(() => {
+							fn(extras, reserve0, reserve1, event)
+						})
+					)
 				} catch (error) {
 					throw error
 				}
@@ -85,6 +87,7 @@ const IMMEDIATE_IDS: NodeJS.Immediate[] = []
 
 process.on('exit', () => {
 	let ln = IMMEDIATE_IDS.length
+	console.log(`purge flashswap script`)
 	for (let index = 0; index < ln; index++) {
 		clearImmediate(IMMEDIATE_IDS[0])
 		IMMEDIATE_IDS.shift()

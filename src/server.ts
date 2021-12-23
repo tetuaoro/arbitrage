@@ -1,18 +1,12 @@
 import { BigNumber, Contract, Event, utils } from 'ethers'
 import dayjs from 'dayjs'
-import utc from 'dayjs/plugin/utc'
-import timezone from 'dayjs/plugin/timezone'
-import fr from 'dayjs/locale/fr'
 import Flashswap from './flashswap'
+import { IO_EVENT, IO_MESSAGE, MESSAGE_SUCCESS_TRANSACTION } from './constants'
 import { getToken, switchInfuraProvider, raoContract, signer, getRouterContractFromPairAddress, getNameExchange } from './utils'
-import { onSyncInfos } from './types'
+import { onSyncInfos, ServerData, ServerOnSync } from './types'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { Logger } from 'ethers/lib/utils'
-
-dayjs.extend(utc)
-dayjs.extend(timezone)
-dayjs.locale(fr)
-dayjs.tz.setDefault('Pacific/Tahiti')
+import { Server } from 'socket.io'
 
 let BLOCKNUMBER = 0,
 	COUNTER_SUCCESS = 0,
@@ -25,14 +19,12 @@ const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
 		COUNTER_CALL++
 		if (LOCK_ON_SYNC || event.blockNumber <= BLOCKNUMBER) return
 		BLOCKNUMBER = event.blockNumber // also lockable
-		// const t0 = Date.now()
 
 		const { pair: pc, pairs: others, token0, token1 } = infos
 
 		const [reserve0, reserve1, ts]: [BigNumber, BigNumber, number] = await pc.getReserves()
 
-		const time = Date.now() / 1000 - ts
-		if (time > 5) return
+		if (Date.now() / 1000 - ts > 5) return
 
 		const onePercent = reserve0.div(100),
 			twoPercent = reserve0.div(50),
@@ -55,7 +47,7 @@ const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
 		}[] = []
 		for await (const reserves of promiseReserveOthers) reserveOthers.push({ r0: reserves[0], r1: reserves[1] })
 
-		const table = []
+		const table: ServerOnSync[] = []
 		let i = 0,
 			diff: BigNumber = BigNumber.from('0'),
 			lastSuccessBigCall: {
@@ -102,18 +94,16 @@ const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
 		}
 		if (typeof lastSuccessBigCall != 'undefined') {
 			LOCK_ON_SYNC = true
-			console.log(`flashswap ${utils.formatUnits(lastSuccessBigCall.diff, token1.decimals)} ${token1.symbol}`)
-			console.table(table)
+			console.log(`call flashswap for ${utils.formatUnits(lastSuccessBigCall.diff, token1.decimals)} ${token1.symbol}`)
 			IMMEDIATE_IDS.push(
 				setImmediate(() => {
 					callFlashswap(lastSuccessBigCall.amountIn, pc, lastSuccessBigCall.pair1)
 				})
 			)
+			console.log(`emit event ${IO_EVENT.CLIENT_EMIT_ONSYNC}`)
+			io.emit(IO_EVENT.CLIENT_EMIT_ONSYNC, table)
 		}
 		COUNTER++
-		// console.log(`${getNameExchange(pc.address)} ${token0.symbol}/${token1.symbol}`)
-		// console.log(`${event.blockNumber} : computed in ${(Date.now() - t0) / 1000} seconds`)
-		// console.log(`${event.blockNumber} : diff sync ${time} seconds\n`)
 	} catch (error) {
 		makeError(error, '### onSync ###')
 	}
@@ -133,14 +123,12 @@ const callFlashswap = async (amountIn: BigNumber, pair: Contract, pair2: Contrac
 			tx: TransactionResponse = await raoContract.connect(signer).callStatic.flashswap(flash, deadline, {
 				gasLimit: utils.parseUnits('2', 'mwei'), // 2.6315
 				gasPrice: utils.parseUnits('380', 'gwei'),
-			}),
-			receipt = await tx.wait(2)
+			})
+		await tx.wait(2)
 		LOCK_ON_SYNC = false
-		console.log(receipt)
-		process.kill(process.pid, 'SIGINT')
+		console.log(MESSAGE_SUCCESS_TRANSACTION)
 	} catch (error) {
-		console.log(error)
-		process.kill(process.pid, 'SIGINT')
+		makeError(error)
 	}
 }
 
@@ -151,20 +139,25 @@ const dayjsFormat = (seconds: number) => {
 
 	return `${hour}:${minute}:${second}`
 }
-const pid = process.pid,
-	date_launched = dayjs()
+
+const getDate = () => {
+	return dayjs().format('D/M/YYYY H:m:s')
+}
+const date_launched = dayjs()
 const logs = () => {
 	let now = dayjs()
-	console.table({
-		PID: pid,
-		'Started at': date_launched.format('D/M/YYYY H:m:s'),
-		'Live date': now.format('D/M/YYYY H:m:s'),
+	const data: ServerData = {
+		StartedAt: date_launched.format('D/M/YYYY H:m:s'),
+		LiveDate: now.format('D/M/YYYY H:m:s'),
 		Running: dayjsFormat(now.diff(date_launched, 'seconds')),
 		COUNTER,
 		COUNTER_CALL,
 		COUNTER_SUCCESS,
 		COUNTER_FAIL,
-	})
+	}
+
+	console.log(`emit event ${IO_EVENT.CLIENT_EMIT_LOG}`)
+	io.emit(IO_EVENT.CLIENT_EMIT_LOG, data)
 }
 
 const FLASHSWAPS: Flashswap[] = [],
@@ -205,8 +198,7 @@ const app = async () => {
 		}
 		console.log(`Created ${i} listeners`)
 		LOCK_ON_SYNC = false
-		INTERVAL_IDS.push(setInterval(logs, 1e3 * 45))
-		// throw { code: 'TIMEOUT' }
+		INTERVAL_IDS.push(setInterval(logs, 1e3 * 120))
 	} catch (error) {
 		makeError(error, '### app ###')
 	}
@@ -257,11 +249,20 @@ const close = () => {
 	LOCK_CLOSE = true
 	console.log(`\nexit///`)
 	logs()
+	io.disconnectSockets(true)
+	io.close((err) => console.error(err))
 	process.exit()
 }
 
 process.on('exit', close)
 process.on('SIGINT', close)
 process.on('SIGTERM', close)
+
+const PORT = parseInt(process.env['PORT']) || 3001
+const io = new Server(PORT)
+
+io.on(IO_EVENT.SERVER_CONNECTION, (socket) => {
+	console.log(`${IO_MESSAGE.NEW_USER} is ${socket.id} at ${getDate()}`)
+})
 
 main()
