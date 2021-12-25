@@ -7,58 +7,29 @@ import { abi as TOKEN_ABI } from './abi/IERC20.json'
 import { abi as RAO_ABI } from './abi/RaoArbitrage.json'
 import TOKENS from './tokens.json'
 import { Token, Address, Exchanges } from './types'
+import _sgMail from '@sendgrid/mail'
 
 /* CONFIGURATION */
 config()
-export const isDevelopment = process.env['NODE_ENV'] == 'dev'
+export const isDevelopment = process.env['NODE_ENV'] == 'dev',
+	API = process.env['API'],
+	NETWORK = process.env['NETWORK']
 
 export const THROW_NOT_FOUND_PAIR = 'THROW_NOT_FOUND_PAIR',
 	THROW_NOT_FOUND_TOKEN = 'THROW_NOT_FOUND_TOKEN'
 
-export const NETWORK = 137
-const INFURA_IDS = process.env['INFURA_IDS'].split(','),
-	INFURA_SECRETS = process.env['INFURA_SECRETS'].split(',')
-let INFURA_INDEX = 0
-export let provider: providers.Provider = isDevelopment
-	? new providers.JsonRpcProvider('http://localhost:8545', NETWORK)
-	: new providers.InfuraProvider(NETWORK, {
-			projectId: INFURA_IDS[INFURA_INDEX],
-			projectSecret: INFURA_SECRETS[INFURA_INDEX],
-	  })
-export let signer = new Wallet(isDevelopment ? process.env['GANACHE_PRIVATE_KEY'] : process.env['PRIVATE_KEY'], provider),
+export const provider: providers.Provider = isDevelopment
+		? new providers.JsonRpcProvider()
+		: new providers.StaticJsonRpcProvider(`https://speedy-nodes-nyc.moralis.io/${API}/${NETWORK}/mainnet`),
+	signer = new Wallet(process.env['PRIVATE_KEY'], provider),
 	factoryContract = new Contract(constants.AddressZero, FACTORY_ABI, provider),
 	routerContract = new Contract(constants.AddressZero, ROUTER_ABI, provider),
 	pairContract = new Contract(constants.AddressZero, PAIR_ABI, provider),
 	tokenContract = new Contract(constants.AddressZero, TOKEN_ABI, provider),
 	raoContract = new Contract('0x4c2fC697B1C0d571E04C6F2750c672BE0CB66407', RAO_ABI, provider)
 
-export const switchInfuraProvider = () => {
-	provider.removeAllListeners()
-	INFURA_INDEX = (INFURA_INDEX + 1) % INFURA_SECRETS.length
-	let apiKey = {
-		projectId: INFURA_IDS[INFURA_INDEX],
-		projectSecret: INFURA_SECRETS[INFURA_INDEX],
-	}
-	provider = new providers.InfuraProvider(NETWORK, apiKey)
-
-	signer = signer.connect(provider)
-	factoryContract = factoryContract.connect(provider)
-	routerContract = routerContract.connect(provider)
-	pairContract = pairContract.connect(provider)
-	tokenContract = tokenContract.connect(provider)
-	raoContract = raoContract.connect(provider)
-
-	for (const i of EXCHANGE_INFOS) {
-		FACTORIES.shift()
-		ROUTERS.shift()
-		let ln = i.pairs.length
-		for (let index = 0; index < ln; index++) {
-			i.pairs.pop()
-		}
-		FACTORIES.push(factoryContract.attach(i.factory))
-		ROUTERS.push(routerContract.attach(i.router))
-	}
-}
+_sgMail.setApiKey(process.env['SENDGRID_API_KEY'])
+export const sgMail = _sgMail
 
 export const getToken = (symbol: string): Token => {
 	let token = TOKENS.find((t) => t.symbol == symbol)
@@ -102,37 +73,6 @@ export const EXCHANGE_INFOS: Exchanges[] = [
 
 export const FACTORIES = EXCHANGE_INFOS.map((i) => factoryContract.attach(i.factory)),
 	ROUTERS = EXCHANGE_INFOS.map((i) => routerContract.attach(i.router))
-
-/* const asyncIntervals: boolean[] = []
-
-const runAsyncInterval = async (cb: CallableFunction, interval: number, intervalIndex: number) => {
-	await cb()
-	if (asyncIntervals[intervalIndex]) {
-		setTimeout(() => runAsyncInterval(cb, interval, intervalIndex), interval)
-	}
-}
-
-export const setAsyncInterval = (cb: CallableFunction, interval: number) => {
-	if (cb && typeof cb === 'function') {
-		const intervalIndex = asyncIntervals.length
-		asyncIntervals.push(true)
-		runAsyncInterval(cb, interval, intervalIndex)
-		return intervalIndex
-	} else {
-		throw new Error('Callback must be a function')
-	}
-}
-
-export const clearAsyncInterval = (intervalIndex: number) => {
-	if (asyncIntervals[intervalIndex]) {
-		asyncIntervals[intervalIndex] = false
-	}
-}
-export const clearAllAsyncInterval = () => {
-	for (let ai of asyncIntervals) {
-		ai = false
-	}
-} */
 
 export const getNameExchange = (address: Address) => {
 	for (const ex of EXCHANGE_INFOS) {

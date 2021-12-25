@@ -1,6 +1,6 @@
 import { Contract, BigNumber, constants, Event } from 'ethers'
 import { Token, Address, onSyncInfos } from './types'
-import { required, FACTORIES, pairContract, eqAddress, EXCHANGE_INFOS } from './utils'
+import { required, FACTORIES, pairContract, eqAddress, EXCHANGE_INFOS, getNameExchange } from './utils'
 
 export default class FlashswapV2 {
 	private _token0: Token
@@ -27,7 +27,7 @@ export default class FlashswapV2 {
 				switchTokens = false
 			for (const fc of this._factory) {
 				let pair: Address = await fc.getPair(this._token0.address, this._token1.address)
-				required(!eqAddress(constants.AddressZero, pair), `${FlashswapV2.THROW_NOT_AN_ADDRESS} #AddressZero`)
+				if (pair in EXCHANGE_INFOS[i].pairs || eqAddress(constants.AddressZero, pair)) continue
 				this._pairs.push(pairContract.attach(pair))
 				EXCHANGE_INFOS[i].pairs.push(pair)
 				i++
@@ -64,6 +64,7 @@ export default class FlashswapV2 {
 				pair: kLasts[0].pair,
 				pairs: this._pairs.filter((pc) => !eqAddress(pc.address, kLasts[0].pair.address)),
 			}
+			console.log(`listen on ${getNameExchange(kLasts[0].pair.address)} for ${this._token0.symbol}/${this._token1.symbol}`)
 			kLasts[0].pair.on('Sync', (reserve0: BigNumber, reserve1: BigNumber, event: Event) => {
 				try {
 					IMMEDIATE_IDS.push(

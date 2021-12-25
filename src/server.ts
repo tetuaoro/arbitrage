@@ -1,20 +1,13 @@
 import { BigNumber, Contract, Event, utils } from 'ethers'
-import Flashswap from './flashswap'
-import { MESSAGE_SUCCESS_TRANSACTION } from './constants'
-import { getToken, switchInfuraProvider, raoContract, signer, getRouterContractFromPairAddress, getNameExchange } from './utils'
-import { onSyncInfos, ServerOnSync } from './types'
-import { TransactionResponse } from '@ethersproject/abstract-provider'
-import { Logger } from 'ethers/lib/utils'
-
-import express from 'express'
-import { Server, Socket } from 'socket.io'
-import { createServer } from 'https'
-import { readFileSync } from 'fs'
+import { getToken, provider, getNameExchange, sgMail } from './utils'
+import { onSyncInfos } from './types'
+import FlashswapV2 from './flashswap'
 
 let BLOCKNUMBER = 0,
 	COUNTER_SUCCESS = 0,
 	COUNTER_CALL = 0,
 	COUNTER_FAIL = 0,
+	COUNTER_TIME_REJECT = 0,
 	COUNTER = 0,
 	LOCK_ON_SYNC = true
 const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
@@ -23,11 +16,14 @@ const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
 		if (LOCK_ON_SYNC || event.blockNumber <= BLOCKNUMBER) return
 		BLOCKNUMBER = event.blockNumber // also lockable
 
-		const { pair: pc, pairs: others, token0, token1 } = infos
+		const { pair: pc, pairs: others, token1 } = infos
 
 		const [reserve0, reserve1, ts]: [BigNumber, BigNumber, number] = await pc.getReserves()
 
-		if (Date.now() / 1000 - ts > 5) return
+		if (Date.now() / 1000 - ts > 5) {
+			COUNTER_TIME_REJECT++
+			return
+		}
 
 		const onePercent = reserve0.div(100),
 			twoPercent = reserve0.div(50),
@@ -35,7 +31,6 @@ const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
 			tenPercent = reserve0.div(10),
 			twentyPercent = reserve0.div(5),
 			fiftyPercent = reserve0.div(2),
-			percentsToNumber = [1, 2, 5, 10, 20, 50],
 			percents = [onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent]
 
 		const amountsPayback: BigNumber[] = []
@@ -48,25 +43,24 @@ const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
 			r0: BigNumber
 			r1: BigNumber
 		}[] = []
-		for await (const reserves of promiseReserveOthers) reserveOthers.push({ r0: reserves[0], r1: reserves[1] })
+		for await (const [r0, r1, _t] of promiseReserveOthers) reserveOthers.push({ r0, r1 })
 
-		const table: ServerOnSync[] = []
 		let i = 0,
-			diff: BigNumber = BigNumber.from('0'),
+			diff = BigNumber.from(0),
 			lastSuccessBigCall: {
 				amountIn: BigNumber
 				diff: BigNumber
 				pair1: Contract
 			}
-		for (const reserve of reserveOthers) {
+		for (const { r0, r1 } of reserveOthers) {
 			let j = -1
 			for (const amountPayback of amountsPayback) {
 				j++
-				if (reserve.r1.lt(amountPayback)) continue
+				if (r1.lt(amountPayback)) continue
 				let amountIn = percents[j],
 					amountInWithFee = amountIn.mul(997),
-					numerator = amountInWithFee.mul(reserve.r1),
-					denominator = reserve.r0.mul(1000).add(amountInWithFee),
+					numerator = amountInWithFee.mul(r1),
+					denominator = r0.mul(1000).add(amountInWithFee),
 					amountOut = numerator.div(denominator),
 					gt = amountOut.gt(amountPayback)
 
@@ -81,26 +75,20 @@ const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
 							diff,
 						}
 					}
-					table.push({
-						'#': `${percentsToNumber[j]}%`,
-						[`${token0.symbol}_BORROW`]: utils.formatUnits(amountIn, token0.decimals),
-						BLOCKNUMBER,
-						Sell: getNameExchange(others[i].address),
-						[token1.symbol]: utils.formatUnits(amountOut, token1.decimals),
-						[`${token1.symbol}_PAYBACK`]: utils.formatUnits(amountPayback, token1.decimals),
-						'Call?': gt,
-					})
 				} else COUNTER_FAIL++
 			}
-			table.push({})
 			i++
 		}
 		if (typeof lastSuccessBigCall != 'undefined') {
 			LOCK_ON_SYNC = true
-			console.log(`💲 call flashswap for ${utils.formatUnits(lastSuccessBigCall.diff, token1.decimals)} ${token1.symbol}`)
+			console.log(
+				`💲 ${event.blockNumber} call flashswap for ${utils.formatUnits(lastSuccessBigCall.diff, token1.decimals)} ${
+					token1.symbol
+				}`
+			)
 			IMMEDIATE_IDS.push(
 				setImmediate(() => {
-					callFlashswap(lastSuccessBigCall.amountIn, pc, lastSuccessBigCall.pair1)
+					callFlashswap(event.blockNumber, lastSuccessBigCall.amountIn, pc, lastSuccessBigCall.pair1)
 				})
 			)
 		}
@@ -110,60 +98,34 @@ const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
 	}
 }
 
-const callFlashswap = async (amountIn: BigNumber, pair: Contract, pair2: Contract) => {
+const callFlashswap = async (blockNumber: number, _amountIn: BigNumber, pair: Contract, pair2: Contract) => {
 	try {
-		let router = getRouterContractFromPairAddress(pair2.address)
-		if (typeof router === 'undefined') {
-		}
+		let routerBorrow = getNameExchange(pair.address),
+			routerSell = getNameExchange(pair2.address),
+			message = `🔍 ${blockNumber} send transaction between ${routerBorrow}/${routerSell}`
+		console.log(message)
 
-		let flash = utils.defaultAbiCoder.encode(
-				['FlashData(uint256 amountBorrow, address pairBorrow, address routerSell)'],
-				[{ amountBorrow: amountIn, pairBorrow: pair.address, routerSell: router.address }]
-			),
-			deadline = Math.floor(Date.now() / 1000) + 30,
-			tx: TransactionResponse = await raoContract.connect(signer).callStatic.flashswap(flash, deadline, {
-				gasLimit: utils.parseUnits('2', 'mwei'), // 2.6315
-				gasPrice: utils.parseUnits('380', 'gwei'),
-			})
-		await tx.wait(2)
+		const msg = {
+			to: process.env['SENDGRID_TO'], // Change to your recipient
+			from: process.env['SENDGRID_FROM'], // Change to your verified sender
+			subject: 'Find an opportunity arbitrage',
+			text: message,
+			html: `<strong>${message} at ${Date.now()}</strong>`,
+		}
+		await sgMail.send(msg)
 		LOCK_ON_SYNC = false
-		console.log(`😀 ${MESSAGE_SUCCESS_TRANSACTION}`)
 	} catch (error) {
-		makeError(error)
+		makeError(error, '### callFlashswap ###')
 	}
 }
 
-// const dayjsFormat = (seconds: number) => {
-// 	let hour = Math.floor(seconds / 60 ** 2),
-// 		minute = Math.floor(seconds / 60) % 60,
-// 		second = seconds % 60
+const logs = () => console.log(`💬 ${BLOCKNUMBER}\t${COUNTER_CALL}\t${COUNTER_TIME_REJECT}\t${COUNTER}\t${COUNTER_SUCCESS}\t${COUNTER_FAIL}`)
 
-// 	return `${hour}:${minute}:${second}`
-// }
-
-// const getDate = () => {
-// 	return dayjs().format('D/M/YYYY H:m:s')
-// }
-// const date_launched = dayjs()
-const logs = () => {
-	// let now = dayjs()
-	// const data: ServerData = {
-	// 	StartedAt: date_launched.format('D/M/YYYY H:m:s'),
-	// 	LiveDate: now.format('D/M/YYYY H:m:s'),
-	// 	Running: dayjsFormat(now.diff(date_launched, 'seconds')),
-	// 	COUNTER,
-	// 	COUNTER_CALL,
-	// 	COUNTER_SUCCESS,
-	// 	COUNTER_FAIL,
-	// }
-
-	console.log(`💬 ${COUNTER_CALL}/${COUNTER}/${COUNTER_SUCCESS}/${COUNTER_FAIL}`)
-}
-
-const FLASHSWAPS: Flashswap[] = [],
+const FLASHSWAPS: FlashswapV2[] = [],
 	INTERVAL_IDS: NodeJS.Timer[] = [],
 	IMMEDIATE_IDS: NodeJS.Immediate[] = []
-const app = async () => {
+const init = async () => {
+	console.log(`🔵 Initialize...`)
 	try {
 		const tokenA = getToken('WMATIC'),
 			tokenB = getToken('WBTC'),
@@ -179,13 +141,12 @@ const app = async () => {
 			for (const t1 of tokens) {
 				j++
 				if (i >= j) continue
-				let flashswap = new Flashswap(t0, t1)
+				let flashswap = new FlashswapV2(t0, t1)
 				try {
 					console.log(`flashswap[${j}] ${t0.symbol}/${t1.symbol}`)
 					await flashswap.initialize()
 					FLASHSWAPS.push(flashswap)
 				} catch (error) {
-					console.log(`error instanciated ${t0.symbol}/${t1.symbol}`)
 					throw error
 				}
 			}
@@ -200,7 +161,7 @@ const app = async () => {
 		LOCK_ON_SYNC = false
 		INTERVAL_IDS.push(setInterval(logs, 1e3 * 120))
 	} catch (error) {
-		makeError(error, '### app ###')
+		makeError(error, '### init ###')
 	}
 }
 
@@ -224,21 +185,18 @@ const makeError = (error: any, capsule?: string) => {
 	console.error(error)
 	console.error(capsule || '###')
 
-	if (error && error.code && error.code == Logger.errors.TIMEOUT) {
-		// change provider
-		switchInfuraProvider()
-		console.log(`Restart main`)
+	provider.removeAllListeners()
+
+	console.log(`Restart main`)
+	setTimeout(() => {
 		main()
-	} else {
-		console.log(`😭 Force exit`)
-		process.exit()
-	}
+	}, 6590)
 }
 
 const main = async () => {
 	console.log(`🔵 Arbitrage start`)
 	try {
-		await app()
+		await init()
 	} catch (error) {
 		makeError(error)
 	}
@@ -251,36 +209,6 @@ const close = () => {
 	console.log(`\n🔴 purge server`)
 	process.exit()
 }
-
-const appExpress = express()
-const appServer = createServer({
-	key: readFileSync('certificat/server.key'),
-	cert: readFileSync('certificat/server.cert'),
-}, appExpress)
-const server = appServer.listen(3001)
-
-appExpress.use(express.static('public'))
-
-const io = new Server(server, {
-	cors: {
-		origin: 'https://ionos.rao-nagos.pf',
-		methods: ['GET', 'POST'],
-	},
-})
-
-console.log(process.env['PORT'], process.env['IP'])
-
-io.on('listening', () => {
-	console.log(`server listen at :3001`)
-})
-
-io.on('connection', (socket: Socket) => {
-	console.log(`new user /${socket.id}`)
-
-	socket.on('disconnect', () => {
-		console.log(`${socket.id} disconnected`)
-	})
-})
 
 process.on('exit', close)
 process.on('SIGINT', close)

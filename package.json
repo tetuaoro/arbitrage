@@ -1,6 +1,6 @@
 {
 	"name": "arbitrage",
-	"version": "1.1.1",
+	"version": "1.2.1",
 	"description": "Make an arbitrage trading bot : sniping & monitoring uniswap fork on polygon network",
 	"main": "build/server.js",
 	"author": "tetuaoro <tetuaoropro@gmail.com>",
@@ -9,13 +9,14 @@
 	"scripts": {
 		"migrate": "truffle migrate --network development",
 		"migrate:prod": "truffle migrate --network polygon",
+		"start:dev": "NODE_ENV=dev node .",
+		"start:prod": "node .",
 		"build:server": "tsc --build --clean && tsc && gulp && node minify.js",
-		"test:server": "tsc && NODE_ENV=dev node .",
-		"compile": "tsc -p tsconfig.client.json",
-		"monitor": "node dist/client.js",
-		"test": "yarn compile && NODE_ENV=dev yarn monitor"
+		"test:server": "tsc && yarn start:dev",
+		"test:prod": "tsc && yarn start:prod"
 	},
 	"dependencies": {
+		"@sendgrid/mail": "^7.6.0",
 		"dotenv": "^10.0.0",
 		"ethers": "^5.5.1",
 		"express": "^4.17.2",
