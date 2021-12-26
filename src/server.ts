@@ -1,7 +1,9 @@
 import { BigNumber, Contract, Event, utils } from 'ethers'
 import { getToken, provider, getNameExchange, sgMail } from './utils'
-import { onSyncInfos } from './types'
+import { onSyncInfos, ServerLogs } from './types'
 import FlashswapV2 from './flashswap'
+
+import { Server } from 'socket.io'
 
 let BLOCKNUMBER = 0,
 	COUNTER_SUCCESS = 0,
@@ -157,8 +159,9 @@ const init = async () => {
 		for (const flashswap of FLASHSWAPS) {
 			i += await flashswap.onSync(onSync)
 		}
-		console.log(`Created ${i} listeners`)
+		console.log(`Created ${i} listeners\nserver listening at :${PORT}`)
 		LOCK_ON_SYNC = false
+		io.listen(PORT)
 		INTERVAL_IDS.push(setInterval(logs, 1e3 * 120))
 	} catch (error) {
 		makeError(error, '### init ###')
@@ -207,11 +210,38 @@ const close = () => {
 	if (LOCK_CLOSE) return
 	LOCK_CLOSE = true
 	console.log(`\n🔴 purge server`)
+	io.close((err) => console.error(err))
 	process.exit()
 }
 
 process.on('exit', close)
 process.on('SIGINT', close)
 process.on('SIGTERM', close)
+
+const START_AT = Date.now()
+
+const io = new Server(),
+	PORT = 3001
+
+io.on('connection', (socket) => {
+	console.log(`new client ${socket.id}`)
+	socket.on('disconnect', () => {
+		console.log(`${socket.id} disconnected`)
+	})
+
+	setInterval(() => {
+		let logs: ServerLogs = {
+			START_AT,
+			UPTIME: Date.now(),
+			BLOCKNUMBER,
+			COUNTER_CALL,
+			COUNTER_TIME_REJECT,
+			COUNTER,
+			COUNTER_SUCCESS,
+			COUNTER_FAIL,
+		}
+		socket.emit('logs', logs)
+	}, 30000)
+})
 
 main()

@@ -3,10 +3,9 @@
 		"module": "commonjs",
 		"resolveJsonModule": true,
 		"removeComments": true,
-		"outDir": "build",
+		"outDir": "dist",
 		"esModuleInterop": true,
 		"allowSyntheticDefaultImports": true
 	},
-	"include": ["src/**/*.ts"],
-	"exclude": ["src/client.ts"]
+	"include": ["src/client.ts"]
 }

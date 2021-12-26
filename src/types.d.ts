@@ -22,10 +22,11 @@ declare type Exchanges = {
 	pairs: Address[]
 }
 
-declare type ServerData = {
-	StartedAt: string
-	LiveDate: string
-	Running: string
+declare type ServerLogs = {
+	START_AT: number
+	UPTIME: number
+	BLOCKNUMBER: number
+	COUNTER_TIME_REJECT: number
 	COUNTER: number
 	COUNTER_CALL: number
 	COUNTER_SUCCESS: number

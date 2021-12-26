@@ -19,7 +19,7 @@ export const THROW_NOT_FOUND_PAIR = 'THROW_NOT_FOUND_PAIR',
 	THROW_NOT_FOUND_TOKEN = 'THROW_NOT_FOUND_TOKEN'
 
 export const provider: providers.Provider = isDevelopment
-		? new providers.JsonRpcProvider()
+		? new providers.StaticJsonRpcProvider()
 		: new providers.StaticJsonRpcProvider(`https://speedy-nodes-nyc.moralis.io/${API}/${NETWORK}/mainnet`),
 	signer = new Wallet(process.env['PRIVATE_KEY'], provider),
 	factoryContract = new Contract(constants.AddressZero, FACTORY_ABI, provider),
@@ -95,5 +95,11 @@ export const getRouterContractFromPairAddress = (pairAddress: Address) => {
 
 process.on('exit', () => {
 	console.log(`🔴 purge utils`)
+	for (const i of EXCHANGE_INFOS) {
+		let n = i.pairs.length
+		for (let _n = 0; _n < n; _n++) {
+			i.pairs.pop()
+		}
+	}
 	provider.removeAllListeners()
 })

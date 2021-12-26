@@ -13,7 +13,9 @@
 		"start:prod": "node .",
 		"build:server": "tsc --build --clean && tsc && gulp && node minify.js",
 		"test:server": "tsc && yarn start:dev",
-		"test:prod": "tsc && yarn start:prod"
+		"test:prod": "tsc && yarn start:prod",
+		"build:client": "tsc -p tsconfig.client.json",
+		"start:client": "node dist/client.js"
 	},
 	"dependencies": {
 		"@sendgrid/mail": "^7.6.0",

@@ -9,6 +9,7 @@ export default class FlashswapV2 {
 	private _pairs: Contract[]
 
 	public static THROW_NOT_AN_ADDRESS = 'Flashswap: THROW_NOT_AN_ADDRESS'
+	public static THROW_ADDRESS_ZERO = 'Flashswap: THROW_ADDRESS_ZERO'
 	public static THROW_NO_FACTORIES = 'Flashswap: THROW_NO_FACTORIES'
 
 	constructor(token0: Token, token1: Token) {
@@ -27,7 +28,7 @@ export default class FlashswapV2 {
 				switchTokens = false
 			for (const fc of this._factory) {
 				let pair: Address = await fc.getPair(this._token0.address, this._token1.address)
-				if (pair in EXCHANGE_INFOS[i].pairs || eqAddress(constants.AddressZero, pair)) continue
+				if (eqAddress(constants.AddressZero, pair)) throw new Error(FlashswapV2.THROW_ADDRESS_ZERO)
 				this._pairs.push(pairContract.attach(pair))
 				EXCHANGE_INFOS[i].pairs.push(pair)
 				i++
