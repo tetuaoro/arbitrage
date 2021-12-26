@@ -3,6 +3,7 @@ import { getToken, provider, getNameExchange, sgMail } from './utils'
 import { onSyncInfos, ServerLogs } from './types'
 import FlashswapV2 from './flashswap'
 
+import { createServer } from 'http'
 import { Server } from 'socket.io'
 
 let BLOCKNUMBER = 0,
@@ -161,7 +162,8 @@ const init = async () => {
 		}
 		console.log(`Created ${i} listeners\nserver listening at :${PORT}`)
 		LOCK_ON_SYNC = false
-		io.listen(PORT)
+		httpServer.listen(PORT, '0.0.0.0')
+		io.attach(httpServer)
 		INTERVAL_IDS.push(setInterval(logs, 1e3 * 120))
 	} catch (error) {
 		makeError(error, '### init ###')
@@ -220,7 +222,8 @@ process.on('SIGTERM', close)
 
 const START_AT = Date.now()
 
-const io = new Server(),
+const httpServer = createServer(),
+	io = new Server(),
 	PORT = 3001
 
 io.on('connection', (socket) => {
@@ -243,5 +246,7 @@ io.on('connection', (socket) => {
 		socket.emit('logs', logs)
 	}, 30000)
 })
+
+httpServer.listen()
 
 main()
