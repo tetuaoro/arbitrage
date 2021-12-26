@@ -1,11 +1,9 @@
 {
 	"compilerOptions": {
-		"module": "commonjs",
-		"resolveJsonModule": true,
+		"jsx": "react",
 		"removeComments": true,
 		"outDir": "dist",
-		"esModuleInterop": true,
-		"allowSyntheticDefaultImports": true
+		"esModuleInterop": true
 	},
-	"include": ["src/client.ts"]
+	"include": ["src/client.tsx"]
 }

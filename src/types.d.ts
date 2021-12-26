@@ -23,8 +23,8 @@ declare type Exchanges = {
 }
 
 declare type ServerLogs = {
-	START_AT: number
-	UPTIME: number
+	START_AT: number|string
+	UPTIME: number|string
 	BLOCKNUMBER: number
 	COUNTER_TIME_REJECT: number
 	COUNTER: number

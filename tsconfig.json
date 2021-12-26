@@ -7,6 +7,5 @@
 		"esModuleInterop": true,
 		"allowSyntheticDefaultImports": true
 	},
-	"include": ["src/**/*.ts"],
-	"exclude": ["src/client.ts"]
+	"include": ["src/**/*.ts"]
 }
