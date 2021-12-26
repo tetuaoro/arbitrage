@@ -3,9 +3,12 @@ import { getToken, provider, getNameExchange, sgMail } from './utils'
 import { onSyncInfos, ServerLogs } from './types'
 import FlashswapV2 from './flashswap'
 
-import { createServer } from 'http'
 import { Server } from 'socket.io'
 
+const FLASHSWAPS: FlashswapV2[] = [],
+	INTERVAL_IDS: NodeJS.Timer[] = [],
+	IMMEDIATE_IDS: NodeJS.Immediate[] = [],
+	TIMEOUT_IDS: NodeJS.Timeout[] = []
 let BLOCKNUMBER = 0,
 	COUNTER_SUCCESS = 0,
 	COUNTER_CALL = 0,
@@ -124,9 +127,6 @@ const callFlashswap = async (blockNumber: number, _amountIn: BigNumber, pair: Co
 
 const logs = () => console.log(`💬 ${BLOCKNUMBER}\t${COUNTER_CALL}\t${COUNTER_TIME_REJECT}\t${COUNTER}\t${COUNTER_SUCCESS}\t${COUNTER_FAIL}`)
 
-const FLASHSWAPS: FlashswapV2[] = [],
-	INTERVAL_IDS: NodeJS.Timer[] = [],
-	IMMEDIATE_IDS: NodeJS.Immediate[] = []
 const init = async () => {
 	console.log(`🔵 Initialize...`)
 	try {
@@ -162,9 +162,8 @@ const init = async () => {
 		}
 		console.log(`Created ${i} listeners\nserver listening at :${PORT}`)
 		LOCK_ON_SYNC = false
-		httpServer.listen(PORT, '0.0.0.0')
-		io.attach(httpServer)
 		INTERVAL_IDS.push(setInterval(logs, 1e3 * 120))
+		io.listen(PORT)
 	} catch (error) {
 		makeError(error, '### init ###')
 	}
@@ -172,6 +171,24 @@ const init = async () => {
 
 const makeError = (error: any, capsule?: string) => {
 	LOCK_ON_SYNC = true
+	purgeArrays()
+
+	console.error(capsule || '###')
+	console.error(error)
+	console.error(capsule || '###')
+
+	provider.removeAllListeners()
+	io.close((err) => console.error(err))
+
+	console.log(`Restart main`)
+	TIMEOUT_IDS.push(
+		setTimeout(() => {
+			main()
+		}, 6590)
+	)
+}
+
+const purgeArrays = () => {
 	let ln = FLASHSWAPS.length
 	for (let index = 0; index < ln; index++) {
 		FLASHSWAPS.shift()
@@ -186,16 +203,11 @@ const makeError = (error: any, capsule?: string) => {
 		clearImmediate(IMMEDIATE_IDS[0])
 		IMMEDIATE_IDS.shift()
 	}
-	console.error(capsule || '###')
-	console.error(error)
-	console.error(capsule || '###')
-
-	provider.removeAllListeners()
-
-	console.log(`Restart main`)
-	setTimeout(() => {
-		main()
-	}, 6590)
+	ln = TIMEOUT_IDS.length
+	for (let index = 0; index < ln; index++) {
+		clearTimeout(TIMEOUT_IDS[0])
+		TIMEOUT_IDS.shift()
+	}
 }
 
 const main = async () => {
@@ -222,9 +234,8 @@ process.on('SIGTERM', close)
 
 const START_AT = Date.now()
 
-const httpServer = createServer(),
-	io = new Server(),
-	PORT = 3001
+const PORT = 3101,
+	io = new Server()
 
 io.on('connection', (socket) => {
 	console.log(`new client ${socket.id}`)

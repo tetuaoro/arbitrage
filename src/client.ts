@@ -1,13 +1,14 @@
 import { config } from 'dotenv'
 import { io } from 'socket.io-client'
 import { ServerLogs } from './types'
+import dayjs from 'dayjs'
 
 config()
 
 const app = async () => {
 	console.log(`App client start`)
 	try {
-		const PORT = 3001,
+		const PORT = 3101,
 			SOCKET_URL = process.env['SOCKET_URL'],
 			socket = io(SOCKET_URL, {
 				autoConnect: false,
@@ -15,7 +16,12 @@ const app = async () => {
 			})
 
 		socket.on('logs', (logs: ServerLogs) => {
-			console.table(logs)
+			let table = {
+                ...logs,
+				START_AT: dayjs(logs.START_AT).format('DD/MM/YYYY HH:mm:ss'),
+				UPTIME: dayjs(logs.UPTIME).format('DD/MM/YYYY HH:mm:ss'),
+			}
+			console.table(table)
 		})
 
 		socket.on('connect', () => {
@@ -30,6 +36,7 @@ const app = async () => {
 		socket.connect()
 
 		process.on('exit', () => {
+			console.log(`disconnected ${socket.id}`)
 			socket.close()
 		})
 	} catch (error) {

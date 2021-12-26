@@ -15,10 +15,12 @@
 		"test:server": "tsc && yarn start:dev",
 		"test:prod": "tsc && yarn start:prod",
 		"build:client": "tsc -p tsconfig.client.json",
-		"start:client": "node dist/client.js"
+		"start:client": "node dist/client.js",
+		"test:client": "yarn build:client && yarn start:client"
 	},
 	"dependencies": {
 		"@sendgrid/mail": "^7.6.0",
+		"dayjs": "^1.10.7",
 		"dotenv": "^10.0.0",
 		"ethers": "^5.5.1",
 		"express": "^4.17.2",
