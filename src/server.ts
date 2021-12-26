@@ -232,21 +232,21 @@ io.on('connection', (socket) => {
 		console.log(`${socket.id} disconnected`)
 	})
 
-	setInterval(() => {
-		let logs: ServerLogs = {
-			START_AT,
-			UPTIME: Date.now(),
-			BLOCKNUMBER,
-			COUNTER_CALL,
-			COUNTER_TIME_REJECT,
-			COUNTER,
-			COUNTER_SUCCESS,
-			COUNTER_FAIL,
-		}
-		socket.emit('logs', logs)
-	}, 30000)
+	INTERVAL_IDS.push(
+		setInterval(() => {
+			let logs: ServerLogs = {
+				START_AT,
+				UPTIME: Date.now(),
+				BLOCKNUMBER,
+				COUNTER_CALL,
+				COUNTER_TIME_REJECT,
+				COUNTER,
+				COUNTER_SUCCESS,
+				COUNTER_FAIL,
+			}
+			socket.emit('logs', logs)
+		}, 30000)
+	)
 })
-
-httpServer.listen()
 
 main()
