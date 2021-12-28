@@ -1,10 +1,8 @@
 const HDWalletProvider = require('@truffle/hdwallet-provider')
 require('dotenv').config()
-const secret = process.env['INFURA_SECRETS'].split(',')[2],
-	id = process.env['INFURA_IDS'].split(',')[2]
 const hdWAllet = new HDWalletProvider({
 	privateKeys: [process.env['PRIVATE_KEY']],
-	providerOrUrl: `https://:${secret}@polygon-mainnet.infura.io/v3/${id}`,
+	providerOrUrl: process.env['RPC_URL'],
 })
 
 module.exports = {

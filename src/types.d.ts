@@ -1,38 +1,11 @@
-import { Contract } from 'ethers'
+import { BigNumber } from 'ethers'
 
-declare type UrlString = string
 declare type Address = string
-declare type Token = {
-	symbol: string
-	address: Address
-	decimals: number
-	img: UrlString
-	network: number
-}
-declare type onSyncInfos = {
-	token0: Token
-	token1: Token
-	pair: Contract
-	pairs: Contract[]
-}
-declare type Exchanges = {
-	name: string
-	factory: Address
-	router: Address
-	pairs: Address[]
-}
-
-declare type ServerLogs = {
-	START_AT: number|string
-	UPTIME: number|string
-	BLOCKNUMBER: number
-	COUNTER_TIME_REJECT: number
-	COUNTER: number
-	COUNTER_CALL: number
-	COUNTER_SUCCESS: number
-	COUNTER_FAIL: number
-}
-
-declare type ServerOnSync = {
-	[key: string]: string | number | boolean
+declare type PairsAddresses = [Address, Address, Address]
+declare type Reserves = [BigNumber, BigNumber, BigNumber]
+declare type Result = {
+	rewards: BigNumber
+	reserveIndex: number
+	exchangesIndexs: [number, number]
+	percent: number
 }

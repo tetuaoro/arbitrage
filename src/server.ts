@@ -1,263 +1,212 @@
-import { BigNumber, Contract, Event, utils } from 'ethers'
-import { getToken, provider, getNameExchange, sgMail } from './utils'
-import { onSyncInfos, ServerLogs } from './types'
-import FlashswapV2 from './flashswap'
+import { BigNumber } from 'ethers'
+import { Address, Reserves, Result } from './types'
+import { queryContract, moralis, FACTORY_ADDRESSES, ROUTER_ADDRESSES, sliceArray, getAmountOut, getAmountOutToPayback } from './utils'
 
-import { Server } from 'socket.io'
+const TOKEN_ADDRESSES: Array<Address> = [
+		'0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6', // WBTC
+		'0x8f3cf7ad23cd3cadbd9735aff958023239c6a063', // DAI
+		'0x7ceb23fd6bc0add59e62ac25578270cff1b9f619', // WETH
+		'0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270', // WMATIC
+	],
+	PAIR_ADDRESSES: Array<Address> = []
 
-const FLASHSWAPS: FlashswapV2[] = [],
-	INTERVAL_IDS: NodeJS.Timer[] = [],
-	IMMEDIATE_IDS: NodeJS.Immediate[] = [],
-	TIMEOUT_IDS: NodeJS.Timeout[] = []
-let BLOCKNUMBER = 0,
-	COUNTER_SUCCESS = 0,
-	COUNTER_CALL = 0,
-	COUNTER_FAIL = 0,
-	COUNTER_TIME_REJECT = 0,
-	COUNTER = 0,
-	LOCK_ON_SYNC = true
-const onSync = async (infos: onSyncInfos, _r0: any, _r1: any, event: Event) => {
+const getPairsByFactory = async () => {
+	console.log(`🔶 getPairsByFactory start`)
 	try {
-		COUNTER_CALL++
-		if (LOCK_ON_SYNC || event.blockNumber <= BLOCKNUMBER) return
-		BLOCKNUMBER = event.blockNumber // also lockable
-
-		const { pair: pc, pairs: others, token1 } = infos
-
-		const [reserve0, reserve1, ts]: [BigNumber, BigNumber, number] = await pc.getReserves()
-
-		if (Date.now() / 1000 - ts > 5) {
-			COUNTER_TIME_REJECT++
-			return
-		}
-
-		const onePercent = reserve0.div(100),
-			twoPercent = reserve0.div(50),
-			fivePercent = reserve0.div(20),
-			tenPercent = reserve0.div(10),
-			twentyPercent = reserve0.div(5),
-			fiftyPercent = reserve0.div(2),
-			percents = [onePercent, twoPercent, fivePercent, tenPercent, twentyPercent, fiftyPercent]
-
-		const amountsPayback: BigNumber[] = []
-		for (const amountInPercent of percents) amountsPayback.push(reserve1.mul(1000).mul(amountInPercent).div(reserve0.mul(997)).add(1))
-
-		const promiseReserveOthers: Promise<[BigNumber, BigNumber, number]>[] = []
-		for (const pair of others) promiseReserveOthers.push(pair.getReserves())
-
-		const reserveOthers: {
-			r0: BigNumber
-			r1: BigNumber
-		}[] = []
-		for await (const [r0, r1, _t] of promiseReserveOthers) reserveOthers.push({ r0, r1 })
-
-		let i = 0,
-			diff = BigNumber.from(0),
-			lastSuccessBigCall: {
-				amountIn: BigNumber
-				diff: BigNumber
-				pair1: Contract
-			}
-		for (const { r0, r1 } of reserveOthers) {
-			let j = -1
-			for (const amountPayback of amountsPayback) {
-				j++
-				if (r1.lt(amountPayback)) continue
-				let amountIn = percents[j],
-					amountInWithFee = amountIn.mul(997),
-					numerator = amountInWithFee.mul(r1),
-					denominator = r0.mul(1000).add(amountInWithFee),
-					amountOut = numerator.div(denominator),
-					gt = amountOut.gt(amountPayback)
-
-				if (gt) {
-					COUNTER_SUCCESS++
-					let diff2 = amountOut.sub(amountPayback)
-					if (diff2.gt(diff)) {
-						diff = diff2
-						lastSuccessBigCall = {
-							amountIn,
-							pair1: others[i],
-							diff,
-						}
-					}
-				} else COUNTER_FAIL++
-			}
-			i++
-		}
-		if (typeof lastSuccessBigCall != 'undefined') {
-			LOCK_ON_SYNC = true
-			console.log(
-				`💲 ${event.blockNumber} call flashswap for ${utils.formatUnits(lastSuccessBigCall.diff, token1.decimals)} ${
-					token1.symbol
-				}`
-			)
-			IMMEDIATE_IDS.push(
-				setImmediate(() => {
-					callFlashswap(event.blockNumber, lastSuccessBigCall.amountIn, pc, lastSuccessBigCall.pair1)
-				})
-			)
-		}
-		COUNTER++
-	} catch (error) {
-		makeError(error, '### onSync ###')
-	}
-}
-
-const callFlashswap = async (blockNumber: number, _amountIn: BigNumber, pair: Contract, pair2: Contract) => {
-	try {
-		let routerBorrow = getNameExchange(pair.address),
-			routerSell = getNameExchange(pair2.address),
-			message = `🔍 ${blockNumber} send transaction between ${routerBorrow}/${routerSell}`
-		console.log(message)
-
-		const msg = {
-			to: process.env['SENDGRID_TO'], // Change to your recipient
-			from: process.env['SENDGRID_FROM'], // Change to your verified sender
-			subject: 'Find an opportunity arbitrage',
-			text: message,
-			html: `<strong>${message} at ${Date.now()}</strong>`,
-		}
-		await sgMail.send(msg)
-		LOCK_ON_SYNC = false
-	} catch (error) {
-		makeError(error, '### callFlashswap ###')
-	}
-}
-
-const logs = () => console.log(`💬 ${BLOCKNUMBER}\t${COUNTER_CALL}\t${COUNTER_TIME_REJECT}\t${COUNTER}\t${COUNTER_SUCCESS}\t${COUNTER_FAIL}`)
-
-const init = async () => {
-	console.log(`🔵 Initialize...`)
-	try {
-		const tokenA = getToken('WMATIC'),
-			tokenB = getToken('WBTC'),
-			tokenC = getToken('WETH'),
-			tokenD = getToken('USDC')
-
-		const tokens = [tokenA, tokenB, tokenC, tokenD]
-
-		console.log(`🔶 Create instances for ${tokens.length} tokens`)
-		let i = 0
-		for (const t0 of tokens) {
-			let j = -1
-			for (const t1 of tokens) {
-				j++
+		const TOKENS = []
+		for (let i = 0; i < TOKEN_ADDRESSES.length; i++) {
+			for (let j = 0; j < TOKEN_ADDRESSES.length; j++) {
 				if (i >= j) continue
-				let flashswap = new FlashswapV2(t0, t1)
-				try {
-					console.log(`flashswap[${j}] ${t0.symbol}/${t1.symbol}`)
-					await flashswap.initialize()
-					FLASHSWAPS.push(flashswap)
-				} catch (error) {
-					throw error
-				}
+				TOKENS.push([TOKEN_ADDRESSES[i], TOKEN_ADDRESSES[j]])
 			}
-			i++
 		}
-		console.log(`Created ${FLASHSWAPS.length} instances\n🔶 Create listeners`)
-		i = 0
-		for (const flashswap of FLASHSWAPS) {
-			i += await flashswap.onSync(onSync)
-		}
-		console.log(`Created ${i} listeners\nserver listening at :${PORT}`)
-		LOCK_ON_SYNC = false
-		INTERVAL_IDS.push(setInterval(logs, 1e3 * 120))
-		io.listen(PORT)
-	} catch (error) {
-		makeError(error, '### init ###')
-	}
-}
 
-const makeError = (error: any, capsule?: string) => {
-	LOCK_ON_SYNC = true
-	purgeArrays()
-
-	console.error(capsule || '###')
-	console.error(error)
-	console.error(capsule || '###')
-
-	provider.removeAllListeners()
-	io.close((err) => console.error(err))
-
-	console.log(`Restart main`)
-	TIMEOUT_IDS.push(
-		setTimeout(() => {
-			main()
-		}, 6590)
-	)
-}
-
-const purgeArrays = () => {
-	let ln = FLASHSWAPS.length
-	for (let index = 0; index < ln; index++) {
-		FLASHSWAPS.shift()
-	}
-	ln = INTERVAL_IDS.length
-	for (let index = 0; index < ln; index++) {
-		clearInterval(INTERVAL_IDS[0])
-		INTERVAL_IDS.shift()
-	}
-	ln = IMMEDIATE_IDS.length
-	for (let index = 0; index < ln; index++) {
-		clearImmediate(IMMEDIATE_IDS[0])
-		IMMEDIATE_IDS.shift()
-	}
-	ln = TIMEOUT_IDS.length
-	for (let index = 0; index < ln; index++) {
-		clearTimeout(TIMEOUT_IDS[0])
-		TIMEOUT_IDS.shift()
-	}
-}
-
-const main = async () => {
-	console.log(`🔵 Arbitrage start`)
-	try {
-		await init()
-	} catch (error) {
+		const pairsByIndexRange: Array<Address> = await queryContract.getPairsByFactory(
+			FACTORY_ADDRESSES,
+			TOKENS,
+			FACTORY_ADDRESSES.length * TOKENS.length
+		)
+		PAIR_ADDRESSES.push(...pairsByIndexRange)
+		console.log(`💡 find ${PAIR_ADDRESSES.length}`)
+	} catch (_error) {
+		const error = { _error, target: getPairsByFactory.name }
 		makeError(error)
 	}
 }
 
-let LOCK_CLOSE = false
-const close = () => {
-	if (LOCK_CLOSE) return
-	LOCK_CLOSE = true
-	console.log(`\n🔴 purge server`)
-	io.close((err) => console.error(err))
-	process.exit()
+const getBestOpportunity = async (reserves: Array<Array<Reserves>>) => {
+	console.log(`🔨 call getBestOpportunity`)
+	try {
+		const len = reserves.length,
+			sublen = reserves[0].length
+
+		const results: Result[] = []
+
+		const TEST_AMOUNT = [2, 5, 10, 20, 100] // 50%, 20%, 10%, 2%, 1%
+		for (let i = 0; i < sublen; i++) {
+			let rewardsA = BigNumber.from(0),
+				rewardsB = BigNumber.from(0)
+			const _results: Result[] = []
+			for (let a = 0; a < len; a++) {
+				for (let b = 0; b < len; b++) {
+					if (a >= b) continue
+					const r0A = reserves[a][i][0],
+						r1A = reserves[a][i][1],
+						r0B = reserves[b][i][0],
+						r1B = reserves[b][i][1],
+						borrow0 = r0A.gt(r1A)
+
+					for (const percent of TEST_AMOUNT) {
+						const amountInA = borrow0 ? r0A.div(percent) : r1A.div(percent), // borrow
+							pathA = borrow0 ? [r0A, r1A] : [r1A, r0A],
+							amountInB = borrow0 ? r0B.div(percent) : r1B.div(percent),
+							pathB = borrow0 ? [r0B, r1B] : [r1B, r0B],
+							amountOutA_A = getAmountOutToPayback(amountInA, pathA[0], pathA[1]),
+							amountOutB_A = getAmountOut(amountInA, pathB[0], pathB[1]),
+							amountOutB_B = getAmountOutToPayback(amountInB, pathB[0], pathB[1]),
+							amountOutA_B = getAmountOut(amountInB, pathA[0], pathA[1]),
+							aToB = amountOutA_A.lt(borrow0 ? r0B : r1B) && amountOutA_A.lt(amountOutB_A),
+							bToA = amountOutB_B.lt(borrow0 ? r0A : r1B) && amountOutB_B.lt(amountOutA_B)
+
+						if (aToB || bToA) {
+							let change = false
+							if (rewardsA.lt(amountOutB_A.sub(amountOutA_A))) {
+								rewardsA = amountOutB_A.sub(amountOutA_A)
+								change = true
+							}
+							if (rewardsB.lt(amountOutA_B.sub(amountOutB_B))) {
+								rewardsB = amountOutA_B.sub(amountOutB_B)
+								change = true
+							}
+							if (change)
+								_results.push({
+									exchangesIndexs: rewardsA.gt(rewardsB) ? [a, b] : [b, a],
+									reserveIndex: i,
+									rewards: rewardsA.gt(rewardsB) ? rewardsA : rewardsB,
+									percent,
+								})
+						}
+					}
+				}
+			}
+
+			if (_results.length > 0) {
+				_results.sort((a, b) => (a.rewards.gt(b.rewards) ? 1 : -1))
+				results.push(_results[0])
+			}
+		}
+		return results
+	} catch (_error) {
+		const error = { _error, target: getBestOpportunity.name }
+		makeError(error)
+	}
 }
 
-process.on('exit', close)
-process.on('SIGINT', close)
-process.on('SIGTERM', close)
+let BLOCKNUMBER = 0,
+	COUNTER_ON_BLOCK = 0,
+	AVERAGE_GBO_COMPUTE_TIME_NUMERATOR = 0,
+	AVERAGE_GBO_DENOMINATOR = 0
+const listenBlock = async () => {
+	console.log(`🔶 listenBlock start`)
+	try {
+		moralis.on('block', async (blockNumber: number) => {
+			try {
+				COUNTER_ON_BLOCK++
+				if (BLOCKNUMBER >= blockNumber) return
+				BLOCKNUMBER = blockNumber
+				const RESERVES: Array<Array<Reserves>> = []
+				const reservesByPairs: Array<Reserves> = await queryContract.getReservesByPairs(PAIR_ADDRESSES)
 
-const START_AT = Date.now()
+				const t0 = Date.now()
+				RESERVES.push(...sliceArray(FACTORY_ADDRESSES.length, reservesByPairs))
+				const results = await getBestOpportunity(RESERVES)
 
-const PORT = 3101,
-	io = new Server()
+				if (results.length > 0) {
+					const _PAIR_ADDRESSES = sliceArray(FACTORY_ADDRESSES.length, PAIR_ADDRESSES)
+					for (let i = 0; i < results.length; i++) {
+						const element = results[i],
+							pairA = _PAIR_ADDRESSES[element.exchangesIndexs[0]][element.reserveIndex]
 
-io.on('connection', (socket) => {
-	console.log(`new client ${socket.id}`)
-	socket.on('disconnect', () => {
-		console.log(`${socket.id} disconnected`)
-	})
+						IMMEDIATES.push(
+							setImmediate(async () => {
+								await flashswap(
+									pairA,
+									ROUTER_ADDRESSES[element.exchangesIndexs[1]],
+									element.percent,
+									blockNumber
+								)
+							})
+						)
+					}
+				}
 
-	INTERVAL_IDS.push(
-		setInterval(() => {
-			let logs: ServerLogs = {
-				START_AT,
-				UPTIME: Date.now(),
-				BLOCKNUMBER,
-				COUNTER_CALL,
-				COUNTER_TIME_REJECT,
-				COUNTER,
-				COUNTER_SUCCESS,
-				COUNTER_FAIL,
+				AVERAGE_GBO_DENOMINATOR++
+				AVERAGE_GBO_COMPUTE_TIME_NUMERATOR += Date.now() - t0
+			} catch (_error) {
+				const error = { _error, target: 'onBlock' }
+				makeError(error)
 			}
-			socket.emit('logs', logs)
-		}, 30000)
-	)
-})
+		})
+	} catch (_error) {
+		const error = { _error, target: listenBlock.name }
+		makeError(error)
+	}
+}
 
-main()
+const flashswap = async (pair: Address, router: Address, percent: number, blocknumber: number) => {
+	console.log(`❕❕ flashswap start`)
+	try {
+		console.log(`💱 ${blocknumber}\t${pair}/${router}\t${100 / percent}%`)
+	} catch (_error) {
+		const error = { _error, target: flashswap.name }
+		makeError(error)
+	}
+}
+
+const makeError = (error: any) => {
+	if (error && error.target && error.error) {
+		console.log(`❌ ${error.target}`)
+		console.error(error.error)
+		console.log(`❌ ${error.target}`)
+	} else {
+		console.error(error)
+	}
+}
+
+let COUNTER_STARTED = 0
+const app = async () => {
+	console.log(`🔵 App start`)
+	try {
+		COUNTER_STARTED++
+		if (COUNTER_STARTED == 1) await getPairsByFactory() // once
+		await listenBlock()
+
+		INTERVALS.push(setInterval(() => {
+			console.log(
+				`💬 ${COUNTER_STARTED}\t${BLOCKNUMBER}\T${COUNTER_ON_BLOCK}\t${
+					AVERAGE_GBO_COMPUTE_TIME_NUMERATOR / AVERAGE_GBO_DENOMINATOR
+				}`
+			)
+		}, 10e3 * 37))
+	} catch (_error) {
+		const error = { _error, target: app.name }
+		makeError(error)
+	}
+}
+
+app()
+
+const IMMEDIATES: NodeJS.Immediate[] = [],
+	INTERVALS: NodeJS.Timer[] = []
+
+process.on('exit', () => {
+	console.log(`🔴 purge server`)
+	let ln = IMMEDIATES.length
+	for (let index = 0; index < ln; index++) {
+		IMMEDIATES.pop()
+	}
+	ln = INTERVALS.length
+	for (let index = 0; index < ln; index++) {
+		INTERVALS.pop()
+	}
+})
