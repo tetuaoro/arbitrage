@@ -578,6 +578,11 @@
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
 
+"@openzeppelin/contracts@^4.4.1":
+  version "4.4.1"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.4.1.tgz#3382db2cd83ab565ed9626765e7da92944b45de8"
+  integrity sha512-o+pHCf/yMLSlV5MkDQEzEQL402i6SoRnktru+0rdSxVEFZcTzzGhZCAtZjUFyKGazMSv1TilzMg+RbED1N8XHQ==
+
 "@sendgrid/client@^7.6.0":
   version "7.6.0"
   resolved "https://registry.yarnpkg.com/@sendgrid/client/-/client-7.6.0.tgz#f90cb8759c96e1d90224f29ad98f8fdc2be287f3"
@@ -3948,11 +3953,6 @@ onetime@^5.1.0:
   integrity sha512-kbpaSSGJTWdAY5KPVeMOKXSrPtr8C8C7wodJbcsd51jRnmD+GZu8Y0VoU6Dm5Z4vWr0Ig/1NKuWRKf7j5aaYSg==
   dependencies:
     mimic-fn "^2.1.0"
-
-openzeppelin-solidity@^4.4.0:
-  version "4.4.0"
-  resolved "https://registry.yarnpkg.com/openzeppelin-solidity/-/openzeppelin-solidity-4.4.0.tgz#177e9637a44468fa06cd5c7d388362105f91ab7c"
-  integrity sha512-7HL0vPuPR3p/PfVJ3ODkHLN5Ueshl94IuqPP2s/ZkXOlVz7QY6brahr9WBdElKyOBuXpfdyVfHrL09kq2dMQ7A==
 
 ordered-read-streams@^1.0.0:
   version "1.0.1"

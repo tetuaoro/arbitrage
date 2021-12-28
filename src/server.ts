@@ -1,5 +1,5 @@
 import { BigNumber } from 'ethers'
-import { Address, Reserves, Result } from './types'
+import { Address, Reserves, Result, Flashswap } from './types'
 import { queryContract, moralis, FACTORY_ADDRESSES, ROUTER_ADDRESSES, sliceArray, getAmountOut, getAmountOutToPayback } from './utils'
 
 const TOKEN_ADDRESSES: Array<Address> = [
@@ -54,7 +54,7 @@ const getBestOpportunity = async (reserves: Array<Array<Reserves>>) => {
 						r1A = reserves[a][i][1],
 						r0B = reserves[b][i][0],
 						r1B = reserves[b][i][1],
-						borrow0 = r0A.gt(r1A)
+						borrow0 = r0A.gt(r1A) && r0B.gt(r1B)
 
 					for (const percent of TEST_AMOUNT) {
 						const amountInA = borrow0 ? r0A.div(percent) : r1A.div(percent), // borrow
@@ -78,20 +78,37 @@ const getBestOpportunity = async (reserves: Array<Array<Reserves>>) => {
 								rewardsB = amountOutA_B.sub(amountOutB_B)
 								change = true
 							}
-							if (change)
+							if (change) {
+								const bool = rewardsA.gt(rewardsB)
 								_results.push({
-									exchangesIndexs: rewardsA.gt(rewardsB) ? [a, b] : [b, a],
+									exchangesIndexs: bool ? [a, b] : [b, a],
 									reserveIndex: i,
-									rewards: rewardsA.gt(rewardsB) ? rewardsA : rewardsB,
+									rewards: bool ? rewardsA : rewardsB,
 									percent,
+									borrow: bool ? amountInA : amountInB,
+									repay: bool ? amountOutA_A : amountOutB_B,
+									amountOut: bool ? amountOutB_A : amountOutA_B,
 								})
+
+								/* console.table({
+									rA: `${r0A.toString()} / ${r1A.toString()}`,
+									rB: `${r0B.toString()} / ${r1B.toString()}`,
+									bool,
+									aToB,
+									bToA,
+									rewards: bool ? rewardsA.toString() : rewardsB.toString(),
+									borrow: bool ? amountInA.toString() : amountInB.toString(),
+									repay: bool ? amountOutA_A.toString() : amountOutB_B.toString(),
+									amountOut: bool ? amountOutB_A.toString() : amountOutA_B.toString(),
+								}) */
+							}
 						}
 					}
 				}
 			}
 
 			if (_results.length > 0) {
-				_results.sort((a, b) => (a.rewards.gt(b.rewards) ? 1 : -1))
+				_results.sort((a, b) => (a.rewards.gt(b.rewards) ? -1 : 1))
 				results.push(_results[0])
 			}
 		}
@@ -105,14 +122,16 @@ const getBestOpportunity = async (reserves: Array<Array<Reserves>>) => {
 let BLOCKNUMBER = 0,
 	COUNTER_ON_BLOCK = 0,
 	AVERAGE_GBO_COMPUTE_TIME_NUMERATOR = 0,
-	AVERAGE_GBO_DENOMINATOR = 0
+	AVERAGE_GBO_DENOMINATOR = 0,
+	LOCK_LISTENER_ON_BLOCK = true
 const listenBlock = async () => {
 	console.log(`🔶 listenBlock start`)
 	try {
+		const lockOnPair: Address[] = []
 		moralis.on('block', async (blockNumber: number) => {
 			try {
 				COUNTER_ON_BLOCK++
-				if (BLOCKNUMBER >= blockNumber) return
+				if (LOCK_LISTENER_ON_BLOCK || BLOCKNUMBER >= blockNumber) return
 				BLOCKNUMBER = blockNumber
 				const RESERVES: Array<Array<Reserves>> = []
 				const reservesByPairs: Array<Reserves> = await queryContract.getReservesByPairs(PAIR_ADDRESSES)
@@ -122,19 +141,31 @@ const listenBlock = async () => {
 				const results = await getBestOpportunity(RESERVES)
 
 				if (results.length > 0) {
-					const _PAIR_ADDRESSES = sliceArray(FACTORY_ADDRESSES.length, PAIR_ADDRESSES)
+					const _PAIR_ADDRESSES: Array<Array<Address>> = sliceArray(FACTORY_ADDRESSES.length, PAIR_ADDRESSES)
 					for (let i = 0; i < results.length; i++) {
 						const element = results[i],
-							pairA = _PAIR_ADDRESSES[element.exchangesIndexs[0]][element.reserveIndex]
+							params: Flashswap = {
+								pairBorrow: _PAIR_ADDRESSES[element.exchangesIndexs[0]][element.reserveIndex],
+								pairSell: _PAIR_ADDRESSES[element.exchangesIndexs[1]][element.reserveIndex],
+								routerSell: ROUTER_ADDRESSES[element.exchangesIndexs[1]],
+								percent: element.percent,
+								blockNumber,
+								borrow: element.borrow,
+								repay: element.repay,
+								amountOut: element.amountOut,
+							}
+
+						if (lockOnPair.includes(params.pairBorrow) || ABUSE_PAIR.includes(params.pairBorrow)) continue
+						lockOnPair.push(params.pairBorrow)
 
 						IMMEDIATES.push(
 							setImmediate(async () => {
-								await flashswap(
-									pairA,
-									ROUTER_ADDRESSES[element.exchangesIndexs[1]],
-									element.percent,
-									blockNumber
-								)
+								await flashswap(params)
+								const index = lockOnPair.indexOf(params.pairBorrow),
+									newArray = lockOnPair.filter((_, i) => i != index),
+									ln = lockOnPair.length
+								for (let i = 0; i < ln; i++) lockOnPair.pop()
+								lockOnPair.push(...newArray)
 							})
 						)
 					}
@@ -153,10 +184,40 @@ const listenBlock = async () => {
 	}
 }
 
-const flashswap = async (pair: Address, router: Address, percent: number, blocknumber: number) => {
+const ABUSE_PAIR: Address[] = [],
+	ABUSE_PAIR_TEMP: Address[] = []
+const manager = (pair: Address) => {
+	ABUSE_PAIR_TEMP.push(pair)
+	let counter = 0
+	for (const _ of ABUSE_PAIR_TEMP) {
+		counter++
+		if (counter > 9) {
+			ABUSE_PAIR.push(pair)
+			break
+		}
+	}
+}
+
+const flashswap = async (params: Flashswap) => {
 	console.log(`❕❕ flashswap start`)
 	try {
-		console.log(`💱 ${blocknumber}\t${pair}/${router}\t${100 / percent}%`)
+		const { pairBorrow, routerSell, percent, blockNumber, pairSell } = params
+		manager(pairBorrow)
+		console.log(`💱 ${blockNumber}\t${pairBorrow} / ${pairSell} => ${routerSell}\t${100 / percent}%`)
+
+		/* const deadline = Math.floor(Date.now() / 1000) + 10,
+			data = {
+				percent,
+				pairBorrow,
+				routerSell,
+			},
+			blockParams = {
+				gasLimit: utils.parseUnits('2', 'mwei'),
+				gasPrice: utils.parseUnits('11', 'gwei'),
+			}
+
+		const tx: TransactionResponse = await raoContract.connect(signer).flashswap(data, deadline, blockParams)
+		await tx.wait() */
 	} catch (_error) {
 		const error = { _error, target: flashswap.name }
 		makeError(error)
@@ -164,13 +225,24 @@ const flashswap = async (pair: Address, router: Address, percent: number, blockn
 }
 
 const makeError = (error: any) => {
-	if (error && error.target && error.error) {
-		console.log(`❌ ${error.target}`)
-		console.error(error.error)
-		console.log(`❌ ${error.target}`)
+	if (error && error.target && error._error) {
+		console.error(`❌ ${error.target}`)
+		if (error._error.body) {
+			const body = JSON.parse(error._error.body)
+			console.error(`\t----miner message : ${body.error.message}`)
+			console.error(`\t----network reason : ${body.error.data[body.result].reason}`)
+		} else console.error(error._error)
+		console.error(`❌ ${error.target}`)
 	} else {
 		console.error(error)
 	}
+
+	//reset
+	LOCK_LISTENER_ON_BLOCK = true
+	moralis.removeAllListeners()
+	clearScript()
+	console.log(`🔄 Restart main`)
+	app()
 }
 
 let COUNTER_STARTED = 0
@@ -180,14 +252,17 @@ const app = async () => {
 		COUNTER_STARTED++
 		if (COUNTER_STARTED == 1) await getPairsByFactory() // once
 		await listenBlock()
+		LOCK_LISTENER_ON_BLOCK = false
 
-		INTERVALS.push(setInterval(() => {
-			console.log(
-				`💬 ${COUNTER_STARTED}\t${BLOCKNUMBER}\T${COUNTER_ON_BLOCK}\t${
-					AVERAGE_GBO_COMPUTE_TIME_NUMERATOR / AVERAGE_GBO_DENOMINATOR
-				}`
-			)
-		}, 10e3 * 37))
+		INTERVALS.push(
+			setInterval(() => {
+				console.log(
+					`💬 ${COUNTER_STARTED}\t${BLOCKNUMBER}\t${COUNTER_ON_BLOCK}\t${
+						AVERAGE_GBO_COMPUTE_TIME_NUMERATOR / AVERAGE_GBO_DENOMINATOR
+					}`
+				)
+			}, 1e3 * 37)
+		)
 	} catch (_error) {
 		const error = { _error, target: app.name }
 		makeError(error)
@@ -199,14 +274,18 @@ app()
 const IMMEDIATES: NodeJS.Immediate[] = [],
 	INTERVALS: NodeJS.Timer[] = []
 
+const clearScript = () => {
+	let ln = IMMEDIATES.length
+	for (let index = 0; index < ln; index++) IMMEDIATES.pop()
+	ln = INTERVALS.length
+	for (let index = 0; index < ln; index++) INTERVALS.pop()
+	ln = ABUSE_PAIR.length
+	for (let index = 0; index < ln; index++) ABUSE_PAIR.pop()
+	ln = ABUSE_PAIR_TEMP.length
+	for (let index = 0; index < ln; index++) ABUSE_PAIR_TEMP.pop()
+}
+
 process.on('exit', () => {
 	console.log(`🔴 purge server`)
-	let ln = IMMEDIATES.length
-	for (let index = 0; index < ln; index++) {
-		IMMEDIATES.pop()
-	}
-	ln = INTERVALS.length
-	for (let index = 0; index < ln; index++) {
-		INTERVALS.pop()
-	}
+	clearScript()
 })

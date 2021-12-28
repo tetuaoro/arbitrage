@@ -8,4 +8,17 @@ declare type Result = {
 	reserveIndex: number
 	exchangesIndexs: [number, number]
 	percent: number
+	borrow: BigNumber
+	repay: BigNumber
+	amountOut: BigNumber
+}
+declare type Flashswap = {
+	pairBorrow: Address
+	pairSell: Address
+	routerSell: Address
+	percent: number
+	blockNumber: number
+	borrow: BigNumber
+	repay: BigNumber
+	amountOut: BigNumber
 }

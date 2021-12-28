@@ -1,16 +1,18 @@
 import { config } from 'dotenv'
-import { providers, Contract, BigNumber } from 'ethers'
-import { abi as QUERY_ABI } from './abi/RaoUniswapQuery.json'
+import { providers, Contract, BigNumber, Wallet } from 'ethers'
+import QUERY_ABI from './abi/RaoUniswapQuery-lite.json'
+import RAO_ABI from './abi/RaoArbitrage-lite.json'
 import _sgMail from '@sendgrid/mail'
 
 /* CONFIGURATION */
 config()
 
-const isDev = process.env['NODE_ENV'] == 'dev',
-	staticNetwork = { name: 'matic', chainId: 137, ensAddress: null, _defaultProvider: null }
-
-export const moralis = new providers.StaticJsonRpcProvider(isDev ? null : process.env['RPC_URL'], staticNetwork),
-	queryContract = new Contract(process.env['RAOUNISWAPQUERY'], QUERY_ABI, moralis) // 0x778B312DD183479c89D18620D547b96cc2eA2beA prod
+export const isDev = process.env['NODE_ENV'] == 'dev',
+	staticNetwork = { name: 'matic', chainId: 137, ensAddress: null, _defaultProvider: null },
+	moralis = new providers.StaticJsonRpcProvider(isDev ? null : process.env['RPC_URL'], staticNetwork),
+	signer = new Wallet(isDev ? process.env['GANACHE_PK'] : process.env['PRIVATE_KEY'], moralis),
+	queryContract = new Contract(process.env['RAOUNISWAPQUERY'], QUERY_ABI, moralis), // 0x778B312DD183479c89D18620D547b96cc2eA2beA prod
+	raoContract = new Contract(process.env['RAOARBITRAGE'], RAO_ABI, moralis)
 
 const SUSHI_FACTORY = '0xc35DADB65012eC5796536bD9864eD8773aBc74C4',
 	QUICK_FACTORY = '0x5757371414417b8C6CAad45bAeF941aBc7d3Ab32',
