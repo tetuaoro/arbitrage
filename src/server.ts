@@ -321,8 +321,8 @@ cron.schedule('59 23 * * *', async () => {
 	console.log('---------------------')
 	console.log('Running Cron Job')
 	const msg = {
-		to: process.env[''], // Change to your recipient
-		from: process.env[''], // Change to your verified sender
+		to: process.env['SENDGRID_FROM'],
+		from: process.env['SENDGRID_TO'],
 		subject: 'Rapport bot arbitrage',
 		text: `Rapport bot arbitrage ${BLOCKNUMBER}/${COUNTER_STARTED}/${
 			AVERAGE_GBO_COMPUTE_TIME / 1000
