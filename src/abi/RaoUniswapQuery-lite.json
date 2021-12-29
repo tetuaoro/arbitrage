@@ -1,0 +1,50 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract IUniswapV2Pair[]",
+        "name": "_pairs",
+        "type": "address[]"
+      }
+    ],
+    "name": "getReservesByPairs",
+    "outputs": [
+      {
+        "internalType": "uint256[3][]",
+        "name": "",
+        "type": "uint256[3][]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IUniswapV2Factory[]",
+        "name": "_uniswapFactories",
+        "type": "address[]"
+      },
+      {
+        "internalType": "address[2][]",
+        "name": "tokens",
+        "type": "address[2][]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "len",
+        "type": "uint256"
+      }
+    ],
+    "name": "getPairsByFactory",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
