@@ -1,6 +1,9 @@
+import { IOEVENT } from './constants'
 import { BigNumber } from 'ethers'
-import { Address, Reserves, Result, Flashswap } from './types'
-import { queryContract, moralis, FACTORY_ADDRESSES, ROUTER_ADDRESSES, sliceArray, getAmountOut, getAmountOutToPayback } from './utils'
+import { Address, Reserves, Result, Flashswap, ServerData } from './types'
+import { queryContract, moralis, FACTORY_ADDRESSES, ROUTER_ADDRESSES, sliceArray, getAmountOut, getAmountOutToPayback, sgMail } from './utils'
+import { Server } from 'socket.io'
+import cron from 'node-cron'
 
 const TOKEN_ADDRESSES: Array<Address> = [
 		'0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6', // WBTC
@@ -34,8 +37,8 @@ const getPairsByFactory = async () => {
 	}
 }
 
-const getBestOpportunity = async (reserves: Array<Array<Reserves>>) => {
-	console.log(`🔨 call getBestOpportunity`)
+const getBestOpportunity = async (reserves: Array<Array<Reserves>>, blockNumber: number) => {
+	console.log(`🔨 call getBestOpportunity at ${blockNumber}`)
 	try {
 		const len = reserves.length,
 			sublen = reserves[0].length
@@ -121,8 +124,7 @@ const getBestOpportunity = async (reserves: Array<Array<Reserves>>) => {
 
 let BLOCKNUMBER = 0,
 	COUNTER_ON_BLOCK = 0,
-	AVERAGE_GBO_COMPUTE_TIME_NUMERATOR = 0,
-	AVERAGE_GBO_DENOMINATOR = 0,
+	AVERAGE_GBO_COMPUTE_TIME = 0,
 	LOCK_LISTENER_ON_BLOCK = true
 const listenBlock = async () => {
 	console.log(`🔶 listenBlock start`)
@@ -138,7 +140,7 @@ const listenBlock = async () => {
 
 				const t0 = Date.now()
 				RESERVES.push(...sliceArray(FACTORY_ADDRESSES.length, reservesByPairs))
-				const results = await getBestOpportunity(RESERVES)
+				const results = await getBestOpportunity(RESERVES, blockNumber)
 
 				if (results.length > 0) {
 					const _PAIR_ADDRESSES: Array<Array<Address>> = sliceArray(FACTORY_ADDRESSES.length, PAIR_ADDRESSES)
@@ -171,8 +173,7 @@ const listenBlock = async () => {
 					}
 				}
 
-				AVERAGE_GBO_DENOMINATOR++
-				AVERAGE_GBO_COMPUTE_TIME_NUMERATOR += Date.now() - t0
+				AVERAGE_GBO_COMPUTE_TIME = Date.now() - t0
 			} catch (_error) {
 				const error = { _error, target: 'onBlock' }
 				makeError(error)
@@ -186,7 +187,7 @@ const listenBlock = async () => {
 
 const ABUSE_PAIR: Address[] = [],
 	ABUSE_PAIR_TEMP: Address[] = []
-const manager = (pair: Address) => {
+const monitoringManager = (pair: Address) => {
 	ABUSE_PAIR_TEMP.push(pair)
 	let counter = 0
 	for (const _ of ABUSE_PAIR_TEMP) {
@@ -198,33 +199,23 @@ const manager = (pair: Address) => {
 	}
 }
 
+let COUNTER_OPPORTUNITY = 0
 const flashswap = async (params: Flashswap) => {
 	console.log(`❕❕ flashswap start`)
 	try {
-		const { pairBorrow, routerSell, percent, blockNumber, pairSell } = params
-		manager(pairBorrow)
-		console.log(`💱 ${blockNumber}\t${pairBorrow} / ${pairSell} => ${routerSell}\t${100 / percent}%`)
-
-		/* const deadline = Math.floor(Date.now() / 1000) + 10,
-			data = {
-				percent,
-				pairBorrow,
-				routerSell,
-			},
-			blockParams = {
-				gasLimit: utils.parseUnits('2', 'mwei'),
-				gasPrice: utils.parseUnits('11', 'gwei'),
-			}
-
-		const tx: TransactionResponse = await raoContract.connect(signer).flashswap(data, deadline, blockParams)
-		await tx.wait() */
+		COUNTER_OPPORTUNITY++
+		const { pairBorrow, percent, blockNumber } = params
+		monitoringManager(pairBorrow)
+		console.log(`💱 ${blockNumber} ${100 / percent}%`)
 	} catch (_error) {
 		const error = { _error, target: flashswap.name }
 		makeError(error)
 	}
 }
 
+let COUNTER_ERROR = 0
 const makeError = (error: any) => {
+	COUNTER_ERROR++
 	if (error && error.target && error._error) {
 		console.error(`❌ ${error.target}`)
 		if (error._error.body) {
@@ -245,6 +236,7 @@ const makeError = (error: any) => {
 	app()
 }
 
+const STARTED_AT = Date.now()
 let COUNTER_STARTED = 0
 const app = async () => {
 	console.log(`🔵 App start`)
@@ -256,11 +248,7 @@ const app = async () => {
 
 		INTERVALS.push(
 			setInterval(() => {
-				console.log(
-					`💬 ${COUNTER_STARTED}\t${BLOCKNUMBER}\t${COUNTER_ON_BLOCK}\t${
-						AVERAGE_GBO_COMPUTE_TIME_NUMERATOR / AVERAGE_GBO_DENOMINATOR
-					}`
-				)
+				console.log(`💬 ${COUNTER_STARTED}\t${BLOCKNUMBER}\t${COUNTER_ON_BLOCK}\t${AVERAGE_GBO_COMPUTE_TIME / 1000}`)
 			}, 1e3 * 37)
 		)
 	} catch (_error) {
@@ -285,7 +273,86 @@ const clearScript = () => {
 	for (let index = 0; index < ln; index++) ABUSE_PAIR_TEMP.pop()
 }
 
-process.on('exit', () => {
+const PORT = process.env['PORT'],
+	io = new Server(parseInt(PORT))
+
+io.on(IOEVENT.CLIENT_CONNECTION, (socket) => {
+	console.log(`new user ${socket.id}`)
+	socket.on(IOEVENT.CLIENT_DISCONNECT, (_reason: any) => {
+		console.log(`user ${socket.id} disconnected`)
+	})
+	socket.on(IOEVENT.CLIENT_SETINTERVAL, (delay: number) => {
+		const sendData = () => {
+			const DATA: ServerData = {
+				id: socket.id,
+				STARTED_AT,
+				UPTIME: Date.now(),
+				BLOCKNUMBER,
+				LOCK_LISTENER_ON_BLOCK,
+				LOCK_CLOSE,
+				AVERAGE_GBO_COMPUTE_TIME,
+				COUNTER_ERROR,
+				COUNTER_STARTED,
+				COUNTER_OPPORTUNITY,
+				COUNTER_ON_BLOCK,
+				ABUSE_PAIR,
+				TOKEN_ADDRESSES,
+				FACTORY_ADDRESSES,
+				PAIR_ADDRESSES,
+			}
+			socket.emit(IOEVENT.SERVER_DATA, DATA)
+		}
+		sendData()
+		INTERVALS.push(setInterval(sendData, delay || 1e3 * 30))
+	})
+})
+
+let LOCK_CLOSE = false
+const close = () => {
+	if (LOCK_CLOSE) return
+	LOCK_CLOSE = true
 	console.log(`🔴 purge server`)
 	clearScript()
+	io.close()
+	process.exit()
+}
+
+cron.schedule('59 23 * * *', async () => {
+	console.log('---------------------')
+	console.log('Running Cron Job')
+	const msg = {
+		to: process.env[''], // Change to your recipient
+		from: process.env[''], // Change to your verified sender
+		subject: 'Rapport bot arbitrage',
+		text: `Rapport bot arbitrage ${BLOCKNUMBER}/${COUNTER_STARTED}/${
+			AVERAGE_GBO_COMPUTE_TIME / 1000
+		}/${COUNTER_OPPORTUNITY}/${COUNTER_ERROR}`,
+		html: `
+			<body>
+				<h1>Rapport bot arbitrage</h1>
+				<table>
+					<tr>
+						<td>LAST_BLOCKNUMBER</td>
+						<td>COUNTER_STARTED</td>
+						<td>AVERAGE_GBO_COMPUTE_TIME</td>
+						<td>COUNTER_OPPORTUNITY</td>
+						<td>COUNTER_ERROR</td>
+					</tr>
+					<tr>
+						<td>${BLOCKNUMBER}</td>
+						<td>${COUNTER_STARTED}</td>
+						<td>${AVERAGE_GBO_COMPUTE_TIME / 1000}</td>
+						<td>${COUNTER_OPPORTUNITY}</td>
+						<td>${COUNTER_ERROR}</td>
+					</tr>
+				</table>
+			</body>
+		`,
+	}
+
+	await sgMail.send(msg)
 })
+
+process.on('exit', close)
+process.on('SIGINT', close)
+process.on('SIGTERM', close)

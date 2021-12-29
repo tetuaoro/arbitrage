@@ -3,7 +3,8 @@
 		"jsx": "react",
 		"removeComments": true,
 		"outDir": "dist",
-		"esModuleInterop": true
+		"esModuleInterop": true,
+		"resolveJsonModule": true
 	},
 	"include": ["src/client.tsx"]
 }
