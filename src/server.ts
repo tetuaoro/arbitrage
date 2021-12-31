@@ -242,15 +242,26 @@ const app = async () => {
 	console.log(`🔵 App start`)
 	try {
 		COUNTER_STARTED++
-		if (COUNTER_STARTED == 1) await getPairsByFactory() // once
-		await listenBlock()
-		LOCK_LISTENER_ON_BLOCK = false
+		const ready = async () => {
+			if (COUNTER_STARTED == 1) await getPairsByFactory() // once
+			await listenBlock()
+			LOCK_LISTENER_ON_BLOCK = false
 
-		INTERVALS.push(
-			setInterval(() => {
-				console.log(`💬 ${COUNTER_STARTED}\t${BLOCKNUMBER}\t${COUNTER_ON_BLOCK}\t${AVERAGE_GBO_COMPUTE_TIME / 1000}`)
-			}, 1e3 * 37)
-		)
+			INTERVALS.push(
+				setInterval(() => {
+					console.log(`💬 ${COUNTER_STARTED}\t${BLOCKNUMBER}\t${COUNTER_ON_BLOCK}\t${AVERAGE_GBO_COMPUTE_TIME / 1000}`)
+				}, 1e3 * 37)
+			)
+		}
+
+		moralis._websocket.on('open', () => {
+			console.log('socket provider opened')
+			ready()
+		})
+
+		moralis._websocket.on('close', () => {
+			throw new Error('socket is closed')
+		})
 	} catch (_error) {
 		const error = { _error, target: app.name }
 		makeError(error)
@@ -318,16 +329,17 @@ const close = () => {
 }
 
 cron.schedule('59 23 * * *', async () => {
-	console.log('---------------------')
-	console.log('Running Cron Job')
-	const msg = {
-		to: process.env['SENDGRID_FROM'],
-		from: process.env['SENDGRID_TO'],
-		subject: 'Rapport bot arbitrage',
-		text: `Rapport bot arbitrage ${BLOCKNUMBER}/${COUNTER_STARTED}/${
-			AVERAGE_GBO_COMPUTE_TIME / 1000
-		}/${COUNTER_OPPORTUNITY}/${COUNTER_ERROR}`,
-		html: `
+	try {
+		console.log('---------------------')
+		console.log('Running Cron Job')
+		const msg = {
+			from: process.env['SENDGRID_FROM'],
+			to: process.env['SENDGRID_TO'],
+			subject: 'Rapport bot arbitrage',
+			text: `Rapport bot arbitrage ${BLOCKNUMBER}/${COUNTER_STARTED}/${
+				AVERAGE_GBO_COMPUTE_TIME / 1000
+			}/${COUNTER_OPPORTUNITY}/${COUNTER_ERROR}`,
+			html: `
 			<body>
 				<h1>Rapport bot arbitrage</h1>
 				<table>
@@ -348,9 +360,13 @@ cron.schedule('59 23 * * *', async () => {
 				</table>
 			</body>
 		`,
-	}
+		}
 
-	await sgMail.send(msg)
+		await sgMail.send(msg)
+	} catch (_error) {
+		const error = { _error, target: 'cron.schedule' }
+		makeError(error)
+	}
 })
 
 process.on('exit', close)

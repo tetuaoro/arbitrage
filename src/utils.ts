@@ -9,8 +9,8 @@ config()
 
 export const isDev = process.env['NODE_ENV'] == 'dev',
 	staticNetwork = { name: 'matic', chainId: 137, ensAddress: null, _defaultProvider: null },
-	moralis = isDev ? new providers.StaticJsonRpcProvider(null, staticNetwork) : new providers.WebSocketProvider(process.env['WSS_URL'], staticNetwork),
-	signer = new Wallet(isDev ? process.env['GANACHE_PK'] : process.env['PRIVATE_KEY'], moralis),
+	moralis = new providers.WebSocketProvider(process.env['WSS_URL'], staticNetwork),
+	signer = new Wallet(process.env['PRIVATE_KEY'], moralis),
 	queryContract = new Contract(process.env['RAOUNISWAPQUERY'], QUERY_ABI, moralis), // 0x778B312DD183479c89D18620D547b96cc2eA2beA prod
 	raoContract = new Contract(process.env['RAOARBITRAGE'], RAO_ABI, moralis)
 
