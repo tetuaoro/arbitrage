@@ -38,7 +38,6 @@ const getPairsByFactory = async () => {
 }
 
 const getBestOpportunity = async (reserves: Array<Array<Reserves>>, blockNumber: number) => {
-	console.log(`🔨 call getBestOpportunity at ${blockNumber}`)
 	try {
 		const len = reserves.length,
 			sublen = reserves[0].length
