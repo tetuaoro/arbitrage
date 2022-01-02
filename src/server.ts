@@ -215,6 +215,7 @@ const flashswap = async (params: Flashswap) => {
 let COUNTER_ERROR = 0
 const makeError = (error: any) => {
 	COUNTER_ERROR++
+	console.error(error)
 	if (error && error.target && error._error) {
 		console.error(`❌ ${error.target}`)
 		if (error._error.body) {
@@ -274,9 +275,15 @@ const IMMEDIATES: NodeJS.Immediate[] = [],
 
 const clearScript = () => {
 	let ln = IMMEDIATES.length
-	for (let index = 0; index < ln; index++) IMMEDIATES.pop()
+	for (let index = 0; index < ln; index++) {
+		clearImmediate(IMMEDIATES[0])
+		IMMEDIATES.shift()
+	}
 	ln = INTERVALS.length
-	for (let index = 0; index < ln; index++) INTERVALS.pop()
+	for (let index = 0; index < ln; index++) {
+		clearInterval(INTERVALS[0])
+		INTERVALS.shift()
+	}
 	ln = ABUSE_PAIR.length
 	for (let index = 0; index < ln; index++) ABUSE_PAIR.pop()
 	ln = ABUSE_PAIR_TEMP.length
